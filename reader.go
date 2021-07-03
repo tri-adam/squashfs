@@ -9,10 +9,13 @@ import (
 )
 
 type Reader struct {
+	FS
+
 	rdr rawreader.RawReader
 
-	decomp decompress.Decompressor
-	super  components.Superblock
+	decomp      decompress.Decompressor
+	fragEntries []components.FragBlockEntry
+	super       components.Superblock
 }
 
 func NewReader(reader io.ReaderAt) (*Reader, error) {
@@ -39,3 +42,7 @@ func NewReaderFromReader(reader io.Reader) (*Reader, error) {
 	}
 	return &out, nil
 }
+
+// func (r Reader) Export(path string) error {}
+
+// func (r Reader) ListAllFiles() ([]string, error) {}
