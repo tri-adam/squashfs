@@ -4,13 +4,15 @@ import (
 	"io"
 
 	"github.com/CalebQ42/squashfs/internal/components"
+	"github.com/CalebQ42/squashfs/internal/decompress"
 	"github.com/CalebQ42/squashfs/internal/rawreader"
 )
 
 type Reader struct {
 	rdr rawreader.RawReader
 
-	super components.Superblock
+	decomp decompress.Decompressor
+	super  components.Superblock
 }
 
 func NewReader(reader io.ReaderAt) (*Reader, error) {
