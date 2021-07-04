@@ -15,6 +15,7 @@ type Reader struct {
 
 	decomp      decompress.Decompressor
 	fragEntries []components.FragBlockEntry
+	ids         []uint32
 	super       components.Superblock
 }
 

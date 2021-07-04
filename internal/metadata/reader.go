@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 	"sync"
 
@@ -86,4 +87,27 @@ func readBlock(rdr io.ReaderAt, offset int64, size uint16, compressed bool, deco
 		handler.data, handler.err = decompress.Decompress(decomp, handler.data)
 	}
 	out <- handler
+}
+
+//ReadAt reads a single metadta block at the offset.
+func ReadBlockAt(rdr io.ReaderAt, offset int64, decomp decompress.Decompressor) (out []byte, nextBlock int64, err error) {
+	hdrRdr := io.NewSectionReader(rdr, offset, 2)
+	var hdr uint16
+	err = binary.Read(hdrRdr, binary.LittleEndian, &hdr)
+	if err != nil {
+		return
+	}
+	nextBlock = offset + 2 + int64(hdr&0x7FFF)
+	out = make([]byte, hdr&0x7FFF)
+	_, err = rdr.ReadAt(out, offset+2)
+	if err != nil {
+		return
+	}
+	if hdr&0x8000 != 0x8000 {
+		if decomp == nil {
+			return nil, 0, errors.New("compressed metadata block, but no decompressor given")
+		}
+		out, err = decompress.Decompress(decomp, out)
+	}
+	return
 }
