@@ -33,7 +33,9 @@ type InodeHeader struct {
 	Num         uint32
 }
 
-type BasicDir struct {
+const InodeHeaderSize = 16
+
+type Dir struct {
 	DirIndex       uint32
 	HardLinks      uint32
 	FileSize       uint16
