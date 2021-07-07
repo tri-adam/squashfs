@@ -1,7 +1,6 @@
 package squashfs
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -49,6 +48,7 @@ func (r *Reader) init() error {
 			}
 		}
 	}
+	var metRdr *metadata.Reader
 	if r.super.FragEntryCount > 0 {
 		count := r.super.FragEntryCount / 512
 		if r.super.FragEntryCount%512 > 0 {
@@ -74,12 +74,11 @@ func (r *Reader) init() error {
 				return err
 			}
 			tmp := make([]components.FragBlockEntry, read)
-			var byts []byte
-			byts, err = metadata.ReadMetadata(r.rdr, int64(b), 0, r.decomp, int64(binary.Size(tmp)))
+			metRdr, err = metadata.NewReader(r.rdr, b, 0, r.decomp)
 			if err != nil {
 				return err
 			}
-			err = binary.Read(bytes.NewReader(byts), binary.LittleEndian, &tmp)
+			err = binary.Read(metRdr, binary.LittleEndian, &tmp)
 			if err != nil {
 				return err
 			}
@@ -111,12 +110,11 @@ func (r *Reader) init() error {
 				return err
 			}
 			tmp := make([]uint32, read)
-			var byts []byte
-			byts, err = metadata.ReadMetadata(r.rdr, int64(b), 0, r.decomp, int64(binary.Size(tmp)))
+			err = metRdr.Reset(b, 0)
 			if err != nil {
 				return err
 			}
-			err = binary.Read(bytes.NewReader(byts), binary.LittleEndian, &tmp)
+			err = binary.Read(metRdr, binary.LittleEndian, &tmp)
 			if err != nil {
 				return err
 			}

@@ -1,7 +1,6 @@
 package squashfs
 
 import (
-	"bytes"
 	"encoding/binary"
 	"errors"
 
@@ -10,33 +9,44 @@ import (
 )
 
 func (r Reader) getDirEntriesFromInode(i *components.Inode) (out []components.DirEntry, err error) {
-	var offset, blockOffset, size int64
+	var offset, blockOffset, size uint64
 	switch i.Type {
 	case components.DirType:
-		offset = int64(i.Data.(components.Dir).DirIndex)
-		blockOffset = int64(i.Data.(components.Dir).BlockOffset)
-		size = int64(i.Data.(components.Dir).FileSize)
+		offset = uint64(i.Data.(components.Dir).DirIndex)
+		blockOffset = uint64(i.Data.(components.Dir).BlockOffset)
+		size = uint64(i.Data.(components.Dir).FileSize)
 	case components.ExtDirType:
-		offset = int64(i.Data.(components.ExtDir).DirIndex)
-		blockOffset = int64(i.Data.(components.ExtDir).BlockOffset)
-		size = int64(i.Data.(components.ExtDir).FileSize)
+		offset = uint64(i.Data.(components.ExtDir).DirIndex)
+		blockOffset = uint64(i.Data.(components.ExtDir).BlockOffset)
+		size = uint64(i.Data.(components.ExtDir).FileSize)
 	default:
 		return nil, errors.New("given inode isn't a dir type")
 	}
-	offset += int64(r.super.DirTableStart)
-	hdr := make([]components.DirHeader, 1)
-	var data []byte
-	for int64(len(data)) < 12+blockOffset {
-		data, offset, err = metadata.ReadBlockAt(r.rdr, offset, r.decomp)
-		if err != nil {
-			return
-		}
-	}
-	data = data[blockOffset:]
-	err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &hdr[0])
+	offset += uint64(r.super.DirTableStart)
+	metRdr, err := metadata.NewReader(r.rdr, offset, blockOffset, r.decomp)
 	if err != nil {
 		return
 	}
-	data = data[12:]
-
+	hdr := make([]components.DirHeader, 0)
+	out = make([]components.DirEntry, 0)
+	for binary.Size(hdr)+binary.Size(out) < int(size) {
+		hdr = append(hdr, components.DirHeader{})
+		err = binary.Read(metRdr, binary.LittleEndian, &hdr[len(hdr)-1])
+		if err != nil {
+			return
+		}
+		outTmp := make([]components.DirEntry, hdr[len(hdr)-1].Count)
+		for i := range outTmp {
+			err = binary.Read(metRdr, binary.LittleEndian, &outTmp[i].DirEntryBase)
+			if err != nil {
+				return
+			}
+			outTmp[i].Name = make([]byte, outTmp[i].NameSize)
+			err = binary.Read(metRdr, binary.LittleEndian, &outTmp[i].Name)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
 }
