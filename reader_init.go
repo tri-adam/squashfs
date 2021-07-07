@@ -13,7 +13,6 @@ import (
 )
 
 func (r *Reader) init() error {
-	//TODO
 	err := binary.Read(r.rdr, binary.LittleEndian, &r.super)
 	if err != nil {
 		return err

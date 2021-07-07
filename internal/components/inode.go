@@ -106,13 +106,8 @@ type Sym struct { //ignore fieldalignment warning
 	Path []byte
 }
 
-type ExtSymBase struct {
-	HardLinks uint32
-	PathSize  uint32
-}
-
 type ExtSym struct { //ignore fieldalignment warning
-	ExtSymBase
+	SymBase
 	Path       []byte
 	XattrIndex uint32
 }

@@ -67,9 +67,174 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 	default:
 		return nil, errors.New("inode type is unsupported: " + strconv.Itoa(int(inode.Type)))
 	}
-	if d, is := inode.Data.(components.Dir); is {
-		_ = d
-	} else {
+	switch inode.Type {
+	case components.ExtDirType:
+		d := inode.Data.(components.ExtDir)
+		for len(data) < 24 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &d.ExtDirBase)
+		if err != nil {
+			return nil, err
+		}
+		data = data[24:]
+		d.Indexes = make([]components.DirIndex, d.IndexCount)
+		for i := range d.Indexes {
+			for len(data) < 12 {
+				block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+				if err != nil {
+					return nil, err
+				}
+				data = append(data, block...)
+			}
+			err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &d.Indexes[i].DirIndexBase)
+			if err != nil {
+				return nil, err
+			}
+			data = data[12:]
+			d.Indexes[i].Name = make([]byte, d.Indexes[i].NameSize)
+			for len(data) < len(d.Indexes[i].Name) {
+				block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+				if err != nil {
+					return nil, err
+				}
+				data = append(data, block...)
+			}
+			err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &d.Indexes[i].Name)
+			if err != nil {
+				return nil, err
+			}
+			data = data[len(d.Indexes[i].Name):]
+		}
+	case components.FileType:
+		f := inode.Data.(components.File)
+		for len(data) < 16 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &f.FileBase)
+		if err != nil {
+			return nil, err
+		}
+		data = data[16:]
+		sizeNum := f.Size / r.super.BlockSize
+		if f.Size&r.super.BlockSize > 0 {
+			sizeNum++
+		}
+		f.BlockSizes = make([]uint32, sizeNum)
+		for len(data) < 4*int(sizeNum) {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &f.BlockSizes)
+		if err != nil {
+			return nil, err
+		}
+	case components.ExtFileType:
+		f := inode.Data.(components.ExtFile)
+		for len(data) < 40 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &f.ExtFileBase)
+		if err != nil {
+			return nil, err
+		}
+		data = data[40:]
+		sizeNum := f.Size / uint64(r.super.BlockSize)
+		if f.Size&uint64(r.super.BlockSize) > 0 {
+			sizeNum++
+		}
+		f.BlockSizes = make([]uint32, sizeNum)
+		for len(data) < 4*int(sizeNum) {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &f.BlockSizes)
+		if err != nil {
+			return nil, err
+		}
+	case components.SymType:
+		s := inode.Data.(components.Sym)
+		for len(data) < 8 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.SymBase)
+		if err != nil {
+			return nil, err
+		}
+		data = data[8:]
+		s.Path = make([]byte, s.PathSize)
+		for len(data) < int(s.PathSize) {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.Path)
+		if err != nil {
+			return nil, err
+		}
+	case components.ExtSymType:
+		s := inode.Data.(components.ExtSym)
+		for len(data) < 8 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.SymBase)
+		if err != nil {
+			return nil, err
+		}
+		data = data[8:]
+		s.Path = make([]byte, s.PathSize)
+		for len(data) < int(s.PathSize) {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.Path)
+		if err != nil {
+			return nil, err
+		}
+		data = data[s.PathSize:]
+		for len(data) < 4 {
+			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
+			if err != nil {
+				return nil, err
+			}
+			data = append(data, block...)
+		}
+		err = binary.Read(bytes.NewReader(data), binary.LittleEndian, &s.XattrIndex)
+		if err != nil {
+			return nil, err
+		}
+	default:
 		for len(data) < binary.Size(inode.Data) {
 			block, nextBlock, err = metadata.ReadBlockAt(r.rdr, nextBlock, r.decomp)
 			if err != nil {
