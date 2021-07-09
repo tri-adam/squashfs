@@ -3,12 +3,18 @@ package squashfs
 import (
 	"encoding/binary"
 	"errors"
+	"io"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 	"github.com/CalebQ42/squashfs/internal/metadata"
 )
 
-func (r Reader) getDirEntriesFromInode(i *components.Inode) (out []components.DirEntry, err error) {
+type dirEntry struct {
+	components.DirEntry
+	Start uint32
+}
+
+func (r Reader) getDirEntriesFromInode(i *components.Inode) (out []dirEntry, err error) {
 	var offset, blockOffset, size uint64
 	switch i.Type {
 	case components.DirType:
@@ -27,25 +33,33 @@ func (r Reader) getDirEntriesFromInode(i *components.Inode) (out []components.Di
 	if err != nil {
 		return
 	}
-	hdr := make([]components.DirHeader, 0)
-	out = make([]components.DirEntry, 0)
-	for binary.Size(hdr)+binary.Size(out) < int(size) {
-		hdr = append(hdr, components.DirHeader{})
-		err = binary.Read(metRdr, binary.LittleEndian, &hdr[len(hdr)-1])
+	curSize := 0
+hdrLoop:
+	for curSize < int(size) {
+		var hdr components.DirHeader
+		err = binary.Read(metRdr, binary.LittleEndian, &hdr)
 		if err != nil {
 			return
 		}
-		outTmp := make([]components.DirEntry, hdr[len(hdr)-1].Count)
-		for i := range outTmp {
-			err = binary.Read(metRdr, binary.LittleEndian, &outTmp[i].DirEntryBase)
+		curSize += 12
+		for i := 0; i < int(hdr.Count); i++ {
+			var tmp components.DirEntry
+			err = binary.Read(metRdr, binary.LittleEndian, &tmp.DirEntryBase)
+			if err == io.EOF {
+				continue hdrLoop
+			}
 			if err != nil {
 				return
 			}
-			outTmp[i].Name = make([]byte, outTmp[i].NameSize)
-			err = binary.Read(metRdr, binary.LittleEndian, &outTmp[i].Name)
+			tmp.Name = make([]byte, tmp.NameSize)
+			err = binary.Read(metRdr, binary.LittleEndian, tmp.Name)
 			if err != nil {
 				return
 			}
+			out = append(out, dirEntry{
+				DirEntry: tmp,
+				Start:    hdr.Start,
+			})
 		}
 	}
 	return

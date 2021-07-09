@@ -13,10 +13,10 @@ type Reader struct {
 
 	rdr rawreader.RawReader
 
-	decomp      decompress.Decompressor
-	fragEntries []components.FragBlockEntry
-	ids         []uint32
-	super       components.Superblock
+	decomp    decompress.Decompressor
+	fragTable []components.FragBlockEntry
+	idTable   []uint32
+	super     components.Superblock
 }
 
 func NewReader(reader io.ReaderAt) (*Reader, error) {

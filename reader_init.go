@@ -82,7 +82,7 @@ func (r *Reader) init() error {
 			if err != nil {
 				return err
 			}
-			r.fragEntries = append(r.fragEntries, tmp...)
+			r.fragTable = append(r.fragTable, tmp...)
 		}
 	}
 	if r.super.IDCount > 0 {
@@ -118,14 +118,13 @@ func (r *Reader) init() error {
 			if err != nil {
 				return err
 			}
-			r.ids = append(r.ids, tmp...)
+			r.idTable = append(r.idTable, tmp...)
 		}
 	}
 	root, err := r.parseInodeRef(r.super.RootInodeRef)
 	if err != nil {
 		return err
 	}
-	_ = root
-	//TODO: parse root as FS
-	return nil
+	r.FS, err = r.fsFromInode(root)
+	return err
 }

@@ -9,6 +9,10 @@ import (
 	"github.com/CalebQ42/squashfs/internal/metadata"
 )
 
+func (r Reader) dirEntryToInode(ent *dirEntry) (*components.Inode, error) {
+	return r.parseInode(uint64(ent.Start), uint64(ent.Offset))
+}
+
 func (r Reader) parseInodeRef(inodeRef uint64) (*components.Inode, error) {
 	return r.parseInode(inodeRef>>16, inodeRef&^0xFFFFFFFF0000)
 }
