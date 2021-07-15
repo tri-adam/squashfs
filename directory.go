@@ -35,14 +35,14 @@ func (r Reader) getDirEntriesFromInode(i *components.Inode) (out []dirEntry, err
 	}
 	curSize := 0
 hdrLoop:
-	for curSize < int(size) {
+	for curSize+12 < int(size) {
 		var hdr components.DirHeader
 		err = binary.Read(metRdr, binary.LittleEndian, &hdr)
 		if err != nil {
 			return
 		}
 		curSize += 12
-		for i := 0; i < int(hdr.Count); i++ {
+		for i := 0; i < int(hdr.Count)+1; i++ {
 			var tmp components.DirEntry
 			err = binary.Read(metRdr, binary.LittleEndian, &tmp.DirEntryBase)
 			if err == io.EOF {
@@ -51,11 +51,12 @@ hdrLoop:
 			if err != nil {
 				return
 			}
-			tmp.Name = make([]byte, tmp.NameSize)
-			err = binary.Read(metRdr, binary.LittleEndian, tmp.Name)
+			tmp.Name = make([]byte, tmp.NameSize+1)
+			err = binary.Read(metRdr, binary.LittleEndian, &tmp.Name)
 			if err != nil {
 				return
 			}
+			curSize += 8 + 1 + int(tmp.NameSize)
 			out = append(out, dirEntry{
 				DirEntry: tmp,
 				Start:    hdr.Start,

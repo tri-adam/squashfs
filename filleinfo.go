@@ -53,7 +53,7 @@ func (f FileInfo) IsDir() bool {
 //Sys will try to return an io.ReadCloser for regular files and nil for other file types.
 func (f FileInfo) Sys() interface{} {
 	if f.ent.Type == components.FileType {
-		rdr, err := data.NewReaderFromInode(f.r.rdr, f.r.decomp, f.i, f.r.fragTable)
+		rdr, err := data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
 		if err != nil {
 			return nil
 		}

@@ -19,7 +19,7 @@ func (r Reader) parseInodeRef(inodeRef uint64) (*components.Inode, error) {
 
 func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error) {
 	inode := new(components.Inode)
-	metRdr, err := metadata.NewReader(r.rdr, offset, blockOffset, r.decomp)
+	metRdr, err := metadata.NewReader(r.rdr, offset+r.super.InodeTableStart, blockOffset, r.decomp)
 	if err != nil {
 		return nil, err
 	}
@@ -29,39 +29,62 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 	}
 	switch inode.Type {
 	case components.DirType:
-		inode.Data = components.Dir{}
+		d := components.Dir{}
+		err = binary.Read(metRdr, binary.LittleEndian, &d)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = d
 	case components.FileType:
-		inode.Data = components.File{}
+		f := components.File{}
+		err = binary.Read(metRdr, binary.LittleEndian, &f.FileBase)
+		if err != nil {
+			return nil, err
+		}
+		sizeNum := f.Size / r.super.BlockSize
+		if f.FragIndex == 0xFFFFFFFF {
+			if f.Size%r.super.BlockSize > 0 {
+				sizeNum++
+			}
+		}
+		f.BlockSizes = make([]uint32, sizeNum)
+		err = binary.Read(metRdr, binary.LittleEndian, &f.BlockSizes)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = f
 	case components.SymType:
-		inode.Data = components.Sym{}
+		s := components.Sym{}
+		err = binary.Read(metRdr, binary.LittleEndian, &s.SymBase)
+		if err != nil {
+			return nil, err
+		}
+		s.Path = make([]byte, s.PathSize)
+		err = binary.Read(metRdr, binary.LittleEndian, &s.Path)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = s
 	case components.BlockType:
 		fallthrough
 	case components.CharType:
-		inode.Data = components.Device{}
+		d := components.Device{}
+		err = binary.Read(metRdr, binary.LittleEndian, &d)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = d
 	case components.FifoType:
 		fallthrough
 	case components.SocketType:
-		inode.Data = components.IPC{}
+		d := components.IPC{}
+		err = binary.Read(metRdr, binary.LittleEndian, &d)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = d
 	case components.ExtDirType:
-		inode.Data = components.ExtDir{}
-	case components.ExtFileType:
-		inode.Data = components.ExtFile{}
-	case components.ExtSymType:
-		inode.Data = components.ExtSym{}
-	case components.ExtBlockType:
-		fallthrough
-	case components.ExtCharType:
-		inode.Data = components.ExtDevice{}
-	case components.ExtFifoType:
-		fallthrough
-	case components.ExtSocketType:
-		inode.Data = components.ExtIPC{}
-	default:
-		return nil, errors.New("inode type is unsupported: " + strconv.Itoa(int(inode.Type)))
-	}
-	switch inode.Type {
-	case components.ExtDirType:
-		d := inode.Data.(components.ExtDir)
+		d := components.ExtDir{}
 		err = binary.Read(metRdr, binary.LittleEndian, &d.ExtDirBase)
 		if err != nil {
 			return nil, err
@@ -78,49 +101,27 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 				return nil, err
 			}
 		}
-	case components.FileType:
-		f := inode.Data.(components.File)
-		err = binary.Read(metRdr, binary.LittleEndian, &f.FileBase)
-		if err != nil {
-			return nil, err
-		}
-		sizeNum := f.Size / r.super.BlockSize
-		if f.Size&r.super.BlockSize > 0 {
-			sizeNum++
-		}
-		f.BlockSizes = make([]uint32, sizeNum)
-		err = binary.Read(metRdr, binary.LittleEndian, &f.BlockSizes)
-		if err != nil {
-			return nil, err
-		}
+		inode.Data = d
 	case components.ExtFileType:
-		f := inode.Data.(components.ExtFile)
+		f := components.ExtFile{}
 		err = binary.Read(metRdr, binary.LittleEndian, &f.ExtFileBase)
 		if err != nil {
 			return nil, err
 		}
 		sizeNum := f.Size / uint64(r.super.BlockSize)
-		if f.Size&uint64(r.super.BlockSize) > 0 {
-			sizeNum++
+		if f.FragIndex == 0xFFFFFFFF {
+			if f.Size%uint64(r.super.BlockSize) > 0 {
+				sizeNum++
+			}
 		}
 		f.BlockSizes = make([]uint32, sizeNum)
 		err = binary.Read(metRdr, binary.LittleEndian, &f.BlockSizes)
 		if err != nil {
 			return nil, err
 		}
-	case components.SymType:
-		s := inode.Data.(components.Sym)
-		err = binary.Read(metRdr, binary.LittleEndian, &s.SymBase)
-		if err != nil {
-			return nil, err
-		}
-		s.Path = make([]byte, s.PathSize)
-		err = binary.Read(metRdr, binary.LittleEndian, &s.Path)
-		if err != nil {
-			return nil, err
-		}
+		inode.Data = f
 	case components.ExtSymType:
-		s := inode.Data.(components.ExtSym)
+		s := components.ExtSym{}
 		err = binary.Read(metRdr, binary.LittleEndian, &s.SymBase)
 		if err != nil {
 			return nil, err
@@ -134,11 +135,27 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 		if err != nil {
 			return nil, err
 		}
-	default:
-		err = binary.Read(metRdr, binary.LittleEndian, &inode.Data)
+		inode.Data = s
+	case components.ExtBlockType:
+		fallthrough
+	case components.ExtCharType:
+		d := components.ExtDevice{}
+		err = binary.Read(metRdr, binary.LittleEndian, &d)
 		if err != nil {
 			return nil, err
 		}
+		inode.Data = d
+	case components.ExtFifoType:
+		fallthrough
+	case components.ExtSocketType:
+		d := components.ExtIPC{}
+		err = binary.Read(metRdr, binary.LittleEndian, &d)
+		if err != nil {
+			return nil, err
+		}
+		inode.Data = d
+	default:
+		return nil, errors.New("inode type is unsupported: " + strconv.Itoa(int(inode.Type)))
 	}
 	return inode, nil
 }

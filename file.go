@@ -1,7 +1,12 @@
 package squashfs
 
 import (
+	"fmt"
+	"io"
 	"io/fs"
+	"os"
+	"path"
+	"sync"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 	"github.com/CalebQ42/squashfs/internal/data"
@@ -31,7 +36,7 @@ func (f File) Stat() (fs.FileInfo, error) {
 
 func (f File) Read(p []byte) (n int, err error) {
 	if f.rdr == nil {
-		f.rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.decomp, f.i, f.r.fragTable)
+		f.rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
 		if err != nil {
 			return
 		}
@@ -46,7 +51,83 @@ func (f File) Close() error {
 	return nil
 }
 
-func (f File) ExtractTo(filepath string) error {
-	//TODO
-	return nil
+func (f File) ExtractTo(filepath string) (err error) {
+	defer func() {
+		fmt.Println(string(f.ent.Name), err)
+	}()
+	filepath = path.Clean(filepath)
+	os.Mkdir(filepath, os.ModePerm)
+	filepath += "/" + string(f.ent.Name)
+	var fil *os.File
+	switch f.ent.Type {
+	case components.FileType:
+		os.Remove(filepath)
+		fil, err = os.Create(filepath)
+		if err != nil {
+			return
+		}
+		var rdr *data.Reader
+		rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
+		if err != nil {
+			return
+		}
+		_, err = io.Copy(fil, rdr)
+		if err != nil {
+			return
+		}
+		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
+	case components.SymType:
+		os.Remove(filepath)
+		if f.i.Type == components.SymType {
+			err = os.Symlink(string(f.i.Data.(components.Sym).Path), filepath)
+			if err != nil {
+				return
+			}
+		} else if f.i.Type == components.ExtSymType {
+			err = os.Symlink(string(f.i.Data.(components.ExtSym).Path), filepath)
+			if err != nil {
+				return
+			}
+		}
+	case components.DirType:
+		err = os.Mkdir(filepath, os.ModePerm)
+		if err != os.ErrExist && err != nil {
+			return
+		}
+		var entries []dirEntry
+		entries, err = f.r.getDirEntriesFromInode(f.i)
+		if err != nil {
+			return
+		}
+		var group sync.WaitGroup
+		errChan := make(chan error)
+		for _, e := range entries {
+			group.Add(1)
+			go func(e dirEntry) {
+				defer group.Done()
+				subDir, er := f.r.FileFromEntry(e)
+				if er != nil {
+					errChan <- er
+					return
+				}
+				er = subDir.ExtractTo(filepath)
+				errChan <- er
+			}(e)
+		}
+		for i := 0; i < len(entries); i++ {
+			err = <-errChan
+			if err != nil {
+				// group.Wait()
+				return
+			}
+		}
+		fil, err = os.Open(filepath)
+		if err != nil {
+			return
+		}
+		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
+	default:
+		return //can only extract dir, sym, and regular. If not of those types, just gracefully ignore.
+	}
+	return
 }

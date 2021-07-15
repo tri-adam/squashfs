@@ -66,7 +66,7 @@ func (r *Reader) init() error {
 		left := r.super.FragEntryCount
 		for _, b := range entryOffsets {
 			read := uint32(512)
-			if left > 512 {
+			if left < 512 {
 				read = left
 			}
 			_, err = r.rdr.Seek(int64(b), io.SeekStart)
@@ -80,9 +80,11 @@ func (r *Reader) init() error {
 			}
 			err = binary.Read(metRdr, binary.LittleEndian, &tmp)
 			if err != nil {
+				print("HI")
 				return err
 			}
 			r.fragTable = append(r.fragTable, tmp...)
+			left -= read
 		}
 	}
 	if r.super.IDCount > 0 {
@@ -102,7 +104,7 @@ func (r *Reader) init() error {
 		left := r.super.IDCount
 		for _, b := range idOffsets {
 			read := uint16(2048)
-			if left > 2048 {
+			if left < 2048 {
 				read = left
 			}
 			_, err = r.rdr.Seek(int64(b), io.SeekStart)
@@ -119,6 +121,7 @@ func (r *Reader) init() error {
 				return err
 			}
 			r.idTable = append(r.idTable, tmp...)
+			left -= read
 		}
 	}
 	root, err := r.parseInodeRef(r.super.RootInodeRef)

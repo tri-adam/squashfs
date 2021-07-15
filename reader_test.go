@@ -33,16 +33,16 @@ func TestSquashfs(t *testing.T) {
 		t.Fatal(err)
 	}
 	fil, err := rdr.Open("*.desktop")
-	if fil == nil {
+	if err != nil {
 		t.Fatal("Can't find desktop fil")
 	}
-	errs := fil.(File).ExtractTo(wd + "/testing")
-	if len(errs) > 0 {
-		t.Fatal(errs)
+	err = fil.(File).ExtractTo(wd + "/testing")
+	if err != nil {
+		t.Fatal(err)
 	}
-	errs = rdr.ExtractTo(wd + "/testing/" + squashfsName + ".d")
-	if len(errs) > 0 {
-		t.Fatal(errs)
+	err = rdr.ExtractTo(wd + "/testing/" + squashfsName + ".d")
+	if err != nil {
+		t.Fatal(err)
 	}
 	t.Fatal("No Problems")
 }
@@ -74,7 +74,12 @@ func TestAppImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.RemoveAll(wd + "/testing/firefox")
-	err = rdr.ExtractTo(wd + "/testing/firefox")
+	fi, err := rdr.Open("updater.ini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fi.(File).ExtractTo(wd + "/testing/firefox")
+	// err = rdr.ExtractTo(wd + "/testing/firefox")
 	t.Fatal(err)
 }
 
