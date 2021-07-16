@@ -22,7 +22,7 @@ func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, blockSize uint32,
 	out = new(Reader)
 	if len(sizes) == 0 {
 		if frag == nil {
-			return nil, errors.New("no sizes or fragment given")
+			return
 		}
 		out.curReader, err = frag.GetDataReader(rdr, decomp)
 		return
@@ -39,13 +39,13 @@ func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, blockSize uint32,
 func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Decompressor, i *components.Inode, fragTable []components.FragBlockEntry) (*Reader, error) {
 	var offset uint64
 	var sizes []uint32
-	var frag Fragment
+	var frag *Fragment
 	switch i.Type {
 	case components.FileType:
 		offset = uint64(i.Data.(components.File).BlockStart)
 		sizes = i.Data.(components.File).BlockSizes
 		if i.Data.(components.File).FragIndex != 0xFFFFFFFF {
-			frag = Fragment{
+			frag = &Fragment{
 				entry:  fragTable[i.Data.(components.File).FragIndex],
 				offset: i.Data.(components.File).FragBlockOffset,
 				size:   i.Data.(components.File).Size % blockSize,
@@ -55,7 +55,7 @@ func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Dec
 		offset = i.Data.(components.ExtFile).BlockStart
 		sizes = i.Data.(components.ExtFile).BlockSizes
 		if i.Data.(components.ExtFile).FragIndex != 0xFFFFFFFF {
-			frag = Fragment{
+			frag = &Fragment{
 				entry:  fragTable[i.Data.(components.ExtFile).FragIndex],
 				offset: i.Data.(components.ExtFile).FragBlockOffset,
 				size:   uint32(i.Data.(components.ExtFile).Size % uint64(blockSize)),
@@ -64,7 +64,7 @@ func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Dec
 	default:
 		return nil, errors.New("given inode isn't file type")
 	}
-	return NewReader(rdr, offset, sizes, blockSize, decomp, &frag)
+	return NewReader(rdr, offset, sizes, blockSize, decomp, frag)
 }
 
 func (d *Reader) setupNextReader() (err error) {
@@ -129,4 +129,93 @@ func (d *Reader) Close() error {
 		return d.curReader.Close()
 	}
 	return nil
+}
+
+func (d *Reader) WriteTo(w io.Writer) (n int64, err error) {
+	if len(d.sizes) == 0 && d.frag == nil {
+		return
+	}
+	outChan := make(chan *writerToReturn)
+	offset := d.nextOffset
+	blocks := len(d.sizes)
+	if d.frag != nil {
+		blocks++
+	}
+	for i, s := range d.sizes {
+		go func(size uint32, offset uint64, i int) {
+			out := new(writerToReturn)
+			out.index = i
+			var rdr io.ReadCloser
+			rdr, out.err = GetDataBlockReader(d.baseRdr, offset, 0, size, d.decomp, 0)
+			if out.err != nil {
+				if rdr != nil {
+					rdr.Close()
+				}
+				outChan <- out
+				return
+			}
+			defer rdr.Close()
+			out.data, out.err = io.ReadAll(rdr)
+			outChan <- out
+		}(s, offset, i)
+		offset += uint64(s &^ (1 << 24))
+	}
+	if d.frag != nil {
+		go func() {
+			out := new(writerToReturn)
+			out.index = blocks
+			var rdr io.ReadCloser
+			rdr, err = d.frag.GetDataReader(d.baseRdr, d.decomp)
+			if out.err != nil {
+				if rdr != nil {
+					rdr.Close()
+				}
+				outChan <- out
+				return
+			}
+			defer rdr.Close()
+			out.data, out.err = io.ReadAll(rdr)
+			outChan <- out
+		}()
+	}
+	curBlock := 0
+	tmp := 0
+	var backLog []*writerToReturn
+	for curBlock <= blocks {
+		if len(backLog) > 0 {
+			for _, b := range backLog {
+				if b.index == curBlock {
+					tmp, err = w.Write(b.data)
+					n += int64(tmp)
+					if err != nil {
+						return
+					}
+					curBlock++
+					continue
+				}
+			}
+		}
+		b := <-outChan
+		if b.err != nil {
+			return n, b.err
+		}
+		if b.index == curBlock {
+			tmp, err = w.Write(b.data)
+			n += int64(tmp)
+			if err != nil {
+				return
+			}
+			curBlock++
+			continue
+		} else {
+			backLog = append(backLog, b)
+		}
+	}
+	return
+}
+
+type writerToReturn struct {
+	err   error
+	data  []byte
+	index int
 }

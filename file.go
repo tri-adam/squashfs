@@ -1,7 +1,6 @@
 package squashfs
 
 import (
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -44,6 +43,16 @@ func (f File) Read(p []byte) (n int, err error) {
 	return f.rdr.Read(p)
 }
 
+func (f File) WriteTo(w io.Writer) (n int64, err error) {
+	if f.rdr == nil {
+		f.rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
+		if err != nil {
+			return
+		}
+	}
+	return f.rdr.WriteTo(w)
+}
+
 func (f File) Close() error {
 	if f.rdr != nil {
 		return f.rdr.Close()
@@ -52,9 +61,6 @@ func (f File) Close() error {
 }
 
 func (f File) ExtractTo(filepath string) (err error) {
-	defer func() {
-		fmt.Println(string(f.ent.Name), err)
-	}()
 	filepath = path.Clean(filepath)
 	os.Mkdir(filepath, os.ModePerm)
 	filepath += "/" + string(f.ent.Name)

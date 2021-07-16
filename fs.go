@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"strings"
-	"sync"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 )
@@ -48,28 +47,24 @@ func (f FS) Open(filepath string) (fs.File, error) {
 func (f FS) ExtractTo(filepath string) (err error) {
 	filepath = path.Clean(filepath)
 	err = os.Mkdir(filepath, os.ModePerm)
-	if err != os.ErrExist && err != nil {
+	if err != nil {
 		return
 	}
-	var group sync.WaitGroup
 	errChan := make(chan error)
 	for _, e := range f.entries {
-		group.Add(1)
 		go func(e dirEntry) {
-			defer group.Done()
 			subDir, er := f.r.FileFromEntry(e)
 			if er != nil {
 				errChan <- er
 				return
 			}
-			er = subDir.ExtractTo(filepath)
-			errChan <- er
+			errChan <- subDir.ExtractTo(filepath)
+			subDir.Close()
 		}(e)
 	}
 	for i := 0; i < len(f.entries); i++ {
 		err = <-errChan
 		if err != nil {
-			// group.Wait()
 			return
 		}
 	}
