@@ -74,12 +74,7 @@ func TestAppImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.RemoveAll(wd + "/testing/firefox")
-	fi, err := rdr.Open("updater.ini")
-	if err != nil {
-		t.Fatal(err)
-	}
-	fi.(File).ExtractTo(wd + "/testing/firefox")
-	// err = rdr.ExtractTo(wd + "/testing/firefox")
+	err = rdr.ExtractTo(wd + "/testing/firefox")
 	t.Fatal(err)
 }
 

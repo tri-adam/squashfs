@@ -1,6 +1,7 @@
 package squashfs
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -51,6 +52,9 @@ func (f File) Close() error {
 }
 
 func (f File) ExtractTo(filepath string) (err error) {
+	defer func() {
+		fmt.Println(string(f.ent.Name), err)
+	}()
 	filepath = path.Clean(filepath)
 	os.Mkdir(filepath, os.ModePerm)
 	filepath += "/" + string(f.ent.Name)

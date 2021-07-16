@@ -82,7 +82,9 @@ func (d *Reader) setupNextReader() (err error) {
 		d.frag = nil
 		return
 	}
-	d.curReader.Close()
+	if d.curReader != nil {
+		d.curReader.Close()
+	}
 	d.curReader, err = GetDataBlockReader(d.baseRdr, d.nextOffset, 0, d.sizes[0], d.decomp, 0)
 	if err != nil {
 		if d.curReader != nil {
