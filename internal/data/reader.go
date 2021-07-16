@@ -163,7 +163,7 @@ func (d *Reader) WriteTo(w io.Writer) (n int64, err error) {
 	if d.frag != nil {
 		go func() {
 			out := new(writerToReturn)
-			out.index = blocks
+			out.index = blocks - 1
 			var rdr io.ReadCloser
 			rdr, err = d.frag.GetDataReader(d.baseRdr, d.decomp)
 			if out.err != nil {
@@ -181,7 +181,8 @@ func (d *Reader) WriteTo(w io.Writer) (n int64, err error) {
 	curBlock := 0
 	tmp := 0
 	var backLog []*writerToReturn
-	for curBlock <= blocks {
+mainLoop:
+	for curBlock < blocks {
 		if len(backLog) > 0 {
 			for _, b := range backLog {
 				if b.index == curBlock {
@@ -191,7 +192,7 @@ func (d *Reader) WriteTo(w io.Writer) (n int64, err error) {
 						return
 					}
 					curBlock++
-					continue
+					continue mainLoop
 				}
 			}
 		}
