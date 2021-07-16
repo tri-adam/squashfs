@@ -2,7 +2,6 @@ package data
 
 import (
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/CalebQ42/squashfs/internal/components"
@@ -16,33 +15,24 @@ type Reader struct {
 	frag       *Fragment
 	sizes      []uint32
 	nextOffset uint64
+	blockSize  uint32
 }
 
-func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, decomp decompress.Decompressor, frag *Fragment) (out *Reader, err error) {
+func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, blockSize uint32, decomp decompress.Decompressor, frag *Fragment) (out *Reader, err error) {
 	out = new(Reader)
 	if len(sizes) == 0 {
+		if frag == nil {
+			return nil, errors.New("no sizes or fragment given")
+		}
 		out.curReader, err = frag.GetDataReader(rdr, decomp)
-		if err != nil {
-			if out.curReader != nil {
-				out.curReader.Close()
-			}
-			return
-		}
-		frag = nil
-	} else {
-		out.curReader, err = GetDataBlockReader(rdr, offset, 0, sizes[0], decomp, 0)
-		if err != nil {
-			if out.curReader != nil {
-				out.curReader.Close()
-			}
-			return
-		}
-		out.nextOffset = offset + uint64(sizes[0]&^(1<<24))
-		out.sizes = sizes[1:]
-		out.frag = frag
+		return
 	}
 	out.baseRdr = rdr
 	out.decomp = decomp
+	out.frag = frag
+	out.sizes = sizes
+	out.nextOffset = offset
+	out.blockSize = blockSize
 	return
 }
 
@@ -61,7 +51,6 @@ func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Dec
 				size:   i.Data.(components.File).Size % blockSize,
 			}
 		}
-		fmt.Println(i.Data.(components.File).Size)
 	case components.ExtFileType:
 		offset = i.Data.(components.ExtFile).BlockStart
 		sizes = i.Data.(components.ExtFile).BlockSizes
@@ -72,13 +61,10 @@ func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Dec
 				size:   uint32(i.Data.(components.ExtFile).Size % uint64(blockSize)),
 			}
 		}
-		fmt.Println(i.Data.(components.ExtFile).Size)
 	default:
 		return nil, errors.New("given inode isn't file type")
 	}
-	fmt.Println("sizes", sizes)
-	fmt.Println("frag size", frag.size)
-	return NewReader(rdr, offset, sizes, decomp, &frag)
+	return NewReader(rdr, offset, sizes, blockSize, decomp, &frag)
 }
 
 func (d *Reader) setupNextReader() (err error) {
@@ -110,8 +96,13 @@ func (d *Reader) setupNextReader() (err error) {
 }
 
 func (d *Reader) Read(p []byte) (n int, err error) {
+	if d.curReader == nil {
+		err = d.setupNextReader()
+		if err != nil {
+			return
+		}
+	}
 	n, err = d.curReader.Read(p)
-	fmt.Println("HIIII", n)
 	if err == nil {
 		return
 	}

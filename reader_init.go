@@ -80,7 +80,6 @@ func (r *Reader) init() error {
 			}
 			err = binary.Read(metRdr, binary.LittleEndian, &tmp)
 			if err != nil {
-				print("HI")
 				return err
 			}
 			r.fragTable = append(r.fragTable, tmp...)

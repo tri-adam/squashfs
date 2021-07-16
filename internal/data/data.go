@@ -1,16 +1,14 @@
 package data
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/CalebQ42/squashfs/internal/decompress"
 )
 
 func GetDataBlockReader(r io.ReaderAt, offset uint64, blockOffset, size uint32, decomp decompress.Decompressor, limit uint32) (io.ReadCloser, error) {
-	comp := size&(1<<24) != (1 << 24)
-	size &^= (1 << 24)
-	if !comp {
+	if size&(1<<24) == (1 << 24) {
+		size &^= (1 << 24)
 		return io.NopCloser(io.NewSectionReader(r, int64(offset+uint64(blockOffset)), int64(size-blockOffset))), nil
 	}
 	secRdr := io.NewSectionReader(r, int64(offset), int64(size))
@@ -21,12 +19,15 @@ func GetDataBlockReader(r io.ReaderAt, offset uint64, blockOffset, size uint32, 
 		}
 		return nil, err
 	}
-	tmp := make([]byte, blockOffset)
-	n, err := rdr.Read(tmp)
-	fmt.Println("HIIIIEI", n, blockOffset)
-	if err != nil {
-		rdr.Close()
-		return nil, err
+	skipped, i := uint32(0), 0
+	for skipped < blockOffset {
+		//Why is this necessary? IDK. It's weird
+		i, err = rdr.Read(make([]byte, blockOffset-skipped))
+		if err != nil {
+			rdr.Close()
+			return nil, err
+		}
+		skipped += uint32(i)
 	}
 	if limit != 0 {
 		return NewLimitReaderCloser(rdr, int64(limit)), nil

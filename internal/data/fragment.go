@@ -1,7 +1,6 @@
 package data
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/CalebQ42/squashfs/internal/components"
@@ -15,6 +14,5 @@ type Fragment struct {
 }
 
 func (f Fragment) GetDataReader(rdr io.ReaderAt, decomp decompress.Decompressor) (io.ReadCloser, error) {
-	fmt.Println("HI", f.offset)
 	return GetDataBlockReader(rdr, f.entry.Start, f.offset, f.entry.Size, decomp, f.size)
 }

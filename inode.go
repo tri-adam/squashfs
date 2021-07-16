@@ -42,10 +42,8 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 			return nil, err
 		}
 		sizeNum := f.Size / r.super.BlockSize
-		if f.FragIndex == 0xFFFFFFFF {
-			if f.Size%r.super.BlockSize > 0 {
-				sizeNum++
-			}
+		if f.FragIndex == 0xFFFFFFFF && f.Size%r.super.BlockSize > 0 {
+			sizeNum++
 		}
 		f.BlockSizes = make([]uint32, sizeNum)
 		err = binary.Read(metRdr, binary.LittleEndian, &f.BlockSizes)
@@ -109,10 +107,8 @@ func (r Reader) parseInode(offset, blockOffset uint64) (*components.Inode, error
 			return nil, err
 		}
 		sizeNum := f.Size / uint64(r.super.BlockSize)
-		if f.FragIndex == 0xFFFFFFFF {
-			if f.Size%uint64(r.super.BlockSize) > 0 {
-				sizeNum++
-			}
+		if f.FragIndex == 0xFFFFFFFF && f.Size%uint64(r.super.BlockSize) > 0 {
+			sizeNum++
 		}
 		f.BlockSizes = make([]uint32, sizeNum)
 		err = binary.Read(metRdr, binary.LittleEndian, &f.BlockSizes)
