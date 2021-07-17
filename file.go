@@ -71,7 +71,7 @@ func (f *File) Close() error {
 }
 
 //ExtractTo extract the given File to the given location.
-func (f File) ExtractTo(filepath string) (err error) {
+func (f *File) ExtractTo(filepath string) (err error) {
 	filepath = path.Clean(filepath)
 	os.Mkdir(filepath, os.ModePerm)
 	filepath += "/" + string(f.ent.Name)
@@ -83,12 +83,7 @@ func (f File) ExtractTo(filepath string) (err error) {
 		if err != nil {
 			return
 		}
-		var rdr *data.Reader
-		rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
-		if err != nil {
-			return
-		}
-		_, err = io.Copy(fil, rdr)
+		_, err = io.Copy(fil, f)
 		if err != nil {
 			return
 		}

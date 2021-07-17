@@ -18,22 +18,15 @@ type Reader struct {
 	blockSize  uint32
 }
 
-func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, blockSize uint32, decomp decompress.Decompressor, frag *Fragment) (out *Reader, err error) {
-	out = new(Reader)
-	if len(sizes) == 0 {
-		if frag == nil {
-			return
-		}
-		out.curReader, err = frag.GetDataReader(rdr, decomp)
-		return
+func NewReader(rdr io.ReaderAt, offset uint64, sizes []uint32, blockSize uint32, decomp decompress.Decompressor, frag *Fragment) *Reader {
+	return &Reader{
+		baseRdr:    rdr,
+		decomp:     decomp,
+		frag:       frag,
+		sizes:      sizes,
+		nextOffset: offset,
+		blockSize:  blockSize,
 	}
-	out.baseRdr = rdr
-	out.decomp = decomp
-	out.frag = frag
-	out.sizes = sizes
-	out.nextOffset = offset
-	out.blockSize = blockSize
-	return
 }
 
 func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Decompressor, i *components.Inode, fragTable []components.FragBlockEntry) (*Reader, error) {
@@ -64,7 +57,7 @@ func NewReaderFromInode(rdr io.ReaderAt, blockSize uint32, decomp decompress.Dec
 	default:
 		return nil, errors.New("given inode isn't file type")
 	}
-	return NewReader(rdr, offset, sizes, blockSize, decomp, frag)
+	return NewReader(rdr, offset, sizes, blockSize, decomp, frag), nil
 }
 
 func (d *Reader) setupNextReader() (err error) {
@@ -130,8 +123,8 @@ func (d *Reader) Read(p []byte) (n int, err error) {
 	return
 }
 
-func (d *Reader) Close() error {
-	if d.baseRdr != nil {
+func (d Reader) Close() error {
+	if d.curReader != nil {
 		return d.curReader.Close()
 	}
 	return nil

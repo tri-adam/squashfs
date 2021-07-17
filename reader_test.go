@@ -74,7 +74,7 @@ func TestAppImage(t *testing.T) {
 		t.Fatal(err)
 	}
 	os.RemoveAll(wd + "/testing/firefox")
-	fil, err := rdr.Open("crashreporter")
+	fil, err := rdr.Open("updater.ini")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func BenchmarkDragRace(b *testing.B) {
 	b.Log("Unsqushfs:", unsquashTime.Round(time.Millisecond))
 	b.Log("Library:", libTime.Round(time.Millisecond))
 	b.Log("unsquashfs is", strconv.FormatFloat(float64(libTime.Milliseconds())/float64(unsquashTime.Milliseconds()), 'f', 2, 64)+"x faster")
-	b.Error("STOP ALREADY!")
+	// b.Error("STOP ALREADY!")
 }
 
 func downloadTestAppImage(dir string) error {
