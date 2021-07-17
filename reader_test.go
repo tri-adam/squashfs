@@ -36,7 +36,7 @@ func TestSquashfs(t *testing.T) {
 	if err != nil {
 		t.Fatal("Can't find desktop fil")
 	}
-	err = fil.(File).ExtractTo(wd + "/testing")
+	err = fil.(*File).ExtractTo(wd + "/testing")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestAppImage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = fil.(File).ExtractTo("testing/firefox")
+	err = fil.(*File).ExtractTo("testing/firefox")
 	// err = rdr.ExtractTo(wd + "/testing/firefox")
 	t.Fatal(err)
 }
@@ -162,7 +162,7 @@ func BenchmarkDragRace(b *testing.B) {
 }
 
 func downloadTestAppImage(dir string) error {
-	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test...
+	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test any...
 	os.Mkdir(dir, os.ModePerm)
 	appImage, err := os.Create(dir + "/" + appImageName)
 	if err != nil {

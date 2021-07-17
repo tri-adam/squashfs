@@ -9,7 +9,7 @@ import (
 	"github.com/CalebQ42/squashfs/internal/metadata"
 )
 
-func (r Reader) dirEntryToInode(ent *dirEntry) (*components.Inode, error) {
+func (r Reader) dirEntryToInode(ent dirEntry) (*components.Inode, error) {
 	return r.parseInode(uint64(ent.Start), uint64(ent.Offset))
 }
 

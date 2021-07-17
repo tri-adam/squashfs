@@ -6,6 +6,9 @@ import (
 )
 
 func ConvertReader(r io.Reader) RawReader {
+	if rr, ok := r.(RawReader); ok {
+		return rr
+	}
 	if rs, is := r.(io.ReadSeeker); is {
 		return &fromReadSeeker{
 			ReadSeeker: rs,
@@ -18,6 +21,9 @@ func ConvertReader(r io.Reader) RawReader {
 }
 
 func ConvertReaderAt(r io.ReaderAt) RawReader {
+	if rr, ok := r.(RawReader); ok {
+		return rr
+	}
 	return &fromReaderAt{
 		ReaderAt: r,
 	}

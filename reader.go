@@ -2,6 +2,7 @@ package squashfs
 
 import (
 	"io"
+	"time"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 	"github.com/CalebQ42/squashfs/internal/decompress"
@@ -9,7 +10,7 @@ import (
 )
 
 type Reader struct {
-	FS
+	*FS
 
 	rdr rawreader.RawReader
 
@@ -19,6 +20,7 @@ type Reader struct {
 	super     components.Superblock
 }
 
+//NewReader creates a new squashfs.Reader from an io.ReaderAt.
 func NewReader(reader io.ReaderAt) (*Reader, error) {
 	out := Reader{
 		rdr: rawreader.ConvertReaderAt(reader),
@@ -42,6 +44,10 @@ func NewReaderFromReader(reader io.Reader) (*Reader, error) {
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (r *Reader) ModTime() time.Time {
+	return time.Unix(int64(r.super.ModTime), 0)
 }
 
 // func (r Reader) Export(path string) error {}

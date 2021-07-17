@@ -5,12 +5,12 @@ import (
 	"io/fs"
 	"os"
 	"path"
-	"sync"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 	"github.com/CalebQ42/squashfs/internal/data"
 )
 
+//File is a file within a squashfs archive. Implements fs.File
 type File struct {
 	i   *components.Inode
 	rdr *data.Reader
@@ -18,13 +18,19 @@ type File struct {
 	ent dirEntry
 }
 
-func (r Reader) FileFromEntry(d dirEntry) (out File, err error) {
-	out.ent = d
-	out.i, err = r.dirEntryToInode(&d)
-	out.r = &r
-	return
+func (r Reader) fileFromEntry(d dirEntry) (*File, error) {
+	i, err := r.dirEntryToInode(d)
+	if err != nil {
+		return nil, err
+	}
+	return &File{
+		i:   i,
+		r:   &r,
+		ent: d,
+	}, nil
 }
 
+//Stat returns a file's fs.FileInfo
 func (f File) Stat() (fs.FileInfo, error) {
 	return FileInfo{
 		i:   f.i,
@@ -33,7 +39,8 @@ func (f File) Stat() (fs.FileInfo, error) {
 	}, nil
 }
 
-func (f File) Read(p []byte) (n int, err error) {
+//Read reads p bytes from the file. If called after Close, the reader is re-created.
+func (f *File) Read(p []byte) (n int, err error) {
 	if f.rdr == nil {
 		f.rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
 		if err != nil {
@@ -43,23 +50,27 @@ func (f File) Read(p []byte) (n int, err error) {
 	return f.rdr.Read(p)
 }
 
+//WriteTo writes all data from the File to the io.Writer.
+//Creates a new reader so Read calls are uneffected.
 func (f File) WriteTo(w io.Writer) (n int64, err error) {
-	if f.rdr == nil {
-		f.rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
-		if err != nil {
-			return
-		}
+	rdr, err := data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
+	if err != nil {
+		return
 	}
-	return f.rdr.WriteTo(w)
+	defer rdr.Close()
+	return rdr.WriteTo(w)
 }
 
-func (f File) Close() error {
+//Close closes the file's reader. Subsequent Read calls will re-create the reader.
+func (f *File) Close() error {
 	if f.rdr != nil {
 		return f.rdr.Close()
 	}
+	f.rdr = nil
 	return nil
 }
 
+//ExtractTo extract the given File to the given location.
 func (f File) ExtractTo(filepath string) (err error) {
 	filepath = path.Clean(filepath)
 	os.Mkdir(filepath, os.ModePerm)
@@ -105,25 +116,21 @@ func (f File) ExtractTo(filepath string) (err error) {
 		if err != nil {
 			return
 		}
-		var group sync.WaitGroup
 		errChan := make(chan error)
-		for _, e := range entries {
-			group.Add(1)
+		for i := range entries {
 			go func(e dirEntry) {
-				defer group.Done()
-				subDir, er := f.r.FileFromEntry(e)
+				subDir, er := f.r.fileFromEntry(e)
 				if er != nil {
 					errChan <- er
 					return
 				}
 				er = subDir.ExtractTo(filepath)
 				errChan <- er
-			}(e)
+			}(entries[i])
 		}
 		for i := 0; i < len(entries); i++ {
 			err = <-errChan
 			if err != nil {
-				// group.Wait()
 				return
 			}
 		}

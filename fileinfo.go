@@ -8,6 +8,7 @@ import (
 	"github.com/CalebQ42/squashfs/internal/data"
 )
 
+//FileInfo is a self-explainatory implementation of fs.FileInfo
 type FileInfo struct {
 	i   *components.Inode
 	r   *Reader
