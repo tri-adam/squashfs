@@ -85,14 +85,20 @@ func (d *Reader) setupNextReader() (err error) {
 	if d.curReader != nil {
 		d.curReader.Close()
 	}
-	d.curReader, err = GetDataBlockReader(d.baseRdr, d.nextOffset, 0, d.sizes[0], d.decomp, 0)
-	if err != nil {
-		if d.curReader != nil {
-			d.curReader.Close()
+	if d.sizes[0] == 0 {
+		d.curReader = &zeroReader{
+			size: d.blockSize,
 		}
-		return
+	} else {
+		d.curReader, err = GetDataBlockReader(d.baseRdr, d.nextOffset, 0, d.sizes[0], d.decomp, 0)
+		if err != nil {
+			if d.curReader != nil {
+				d.curReader.Close()
+			}
+			return
+		}
+		d.nextOffset = d.nextOffset + uint64(d.sizes[0]&^(1<<24))
 	}
-	d.nextOffset = d.nextOffset + uint64(d.sizes[0]&^(1<<24))
 	d.sizes = d.sizes[1:]
 	return
 }
