@@ -24,29 +24,54 @@ func (r *Reader) init() error {
 	}
 	switch r.super.CompressionID {
 	case 1:
-		r.decomp = decompress.Gzip{}
-	case 3:
-		r.decomp = decompress.Lzo{}
-	case 4:
-		r.decomp = decompress.Xz{}
-	case 5:
-		r.decomp = decompress.Lz4{}
-	case 6:
-		r.decomp = decompress.Zstd{}
-	default:
-		return errors.New("unsupported compression type")
-	}
-	if r.super.ParseFlags().CompressorOptions {
-		err = binary.Read(r.rdr, binary.LittleEndian, r.decomp)
-		if err != nil {
-			return err
-		}
-		if r.super.CompressionID == 3 {
-			lzo := r.decomp.(decompress.Lzo)
-			if lzo.Algorithm != 0 && lzo.Algorithm != 4 {
-				return errors.New("unsupported lzo compression algorithm")
+		var tmp decompress.Gzip
+		if r.super.ParseFlags().CompressorOptions {
+			err = binary.Read(r.rdr, binary.LittleEndian, &tmp)
+			if err != nil {
+				return err
 			}
 		}
+		r.decomp = tmp
+	case 2:
+		r.decomp = decompress.Lzma{}
+	case 3:
+		var tmp decompress.Lzo
+		if r.super.ParseFlags().CompressorOptions {
+			err = binary.Read(r.rdr, binary.LittleEndian, &tmp)
+			if err != nil {
+				return err
+			}
+		}
+		r.decomp = tmp
+	case 4:
+		var tmp decompress.Xz
+		if r.super.ParseFlags().CompressorOptions {
+			err = binary.Read(r.rdr, binary.LittleEndian, &tmp)
+			if err != nil {
+				return err
+			}
+		}
+		r.decomp = tmp
+	case 5:
+		var tmp decompress.Lz4
+		if r.super.ParseFlags().CompressorOptions {
+			err = binary.Read(r.rdr, binary.LittleEndian, &tmp)
+			if err != nil {
+				return err
+			}
+		}
+		r.decomp = tmp
+	case 6:
+		var tmp decompress.Zstd
+		if r.super.ParseFlags().CompressorOptions {
+			err = binary.Read(r.rdr, binary.LittleEndian, &tmp)
+			if err != nil {
+				return err
+			}
+		}
+		r.decomp = tmp
+	default:
+		return errors.New("unsupported compression type")
 	}
 	var metRdr *metadata.Reader
 	if r.super.FragEntryCount > 0 {

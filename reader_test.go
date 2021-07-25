@@ -1,7 +1,6 @@
 package squashfs
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -14,33 +13,35 @@ import (
 )
 
 const (
-	downloadURL  = "https://github.com/srevinsaju/Firefox-Appimage/releases/download/firefox-v84.0.r20201221152838/firefox-84.0.r20201221152838-x86_64.AppImage"
-	appImageName = "firefox-84.0.r20201221152838-x86_64.AppImage"
-	squashfsName = "balenaEtcher-1.5.113-x64.AppImage.sfs"
+	appimageURL  = "https://github.com/srevinsaju/Firefox-Appimage/releases/download/firefox-v84.0.r20201221152838/firefox-84.0.r20201221152838-x86_64.AppImage"
+	appimageName = "firefox-84.0.r20201221152838-x86_64.AppImage"
+	//TODO: Find better raw squashfs example. This one takes too long to extract
+	sfsURL  = "http://mirror.rackspace.com/archlinux/iso/2021.07.01/arch/x86_64/airootfs.sfs"
+	sfsName = "airootfs.sfs"
 )
 
 func TestSquashfs(t *testing.T) {
-	wd, err := os.Getwd()
+	t.Parallel()
+	sfsFil, err := os.Open("testing/" + sfsName)
+	if os.IsNotExist(err) {
+		err = downloadTestSfs("testing")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sfsFil, err = os.Open("testing/" + appimageName)
+		if err != nil {
+			t.Fatal(err)
+		}
+	} else if err != nil {
+		t.Fatal(err)
+	}
+	defer sfsFil.Close()
+	rdr, err := NewReader(sfsFil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	squashFil, err := os.Open(wd + "/testing/" + squashfsName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rdr, err := NewReader(squashFil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fil, err := rdr.Open("*.desktop")
-	if err != nil {
-		t.Fatal("Can't find desktop fil")
-	}
-	err = fil.(*File).ExtractTo(wd + "/testing")
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = rdr.ExtractTo(wd + "/testing/" + squashfsName + ".d")
+	os.RemoveAll("testing/" + sfsName + ".d")
+	err = rdr.ExtractTo("testing/" + sfsName + ".d")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,17 +50,13 @@ func TestSquashfs(t *testing.T) {
 
 func TestAppImage(t *testing.T) {
 	t.Parallel()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	aiFil, err := os.Open(wd + "/testing/" + appImageName)
+	aiFil, err := os.Open("testing/" + appimageName)
 	if os.IsNotExist(err) {
-		err = downloadTestAppImage(wd + "/testing")
+		err = downloadTestAppImage("testing")
 		if err != nil {
 			t.Fatal(err)
 		}
-		aiFil, err = os.Open(wd + "/testing/" + appImageName)
+		aiFil, err = os.Open("testing/" + appimageName)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -68,12 +65,12 @@ func TestAppImage(t *testing.T) {
 	}
 	defer aiFil.Close()
 	stat, _ := aiFil.Stat()
-	ai := goappimage.NewAppImage(wd + "/testing/" + appImageName)
+	ai := goappimage.NewAppImage("testing/" + appimageName)
 	rdr, err := NewReader(io.NewSectionReader(aiFil, ai.Offset, stat.Size()-ai.Offset))
 	if err != nil {
 		t.Fatal(err)
 	}
-	os.RemoveAll(wd + "/testing/firefox")
+	os.RemoveAll("testing/firefox")
 	fil, err := rdr.Open("updater.ini")
 	if err != nil {
 		t.Fatal(err)
@@ -83,51 +80,14 @@ func TestAppImage(t *testing.T) {
 	t.Fatal(err)
 }
 
-func TestUnsquashfs(t *testing.T) {
-	t.Parallel()
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	aiFil, err := os.Open(wd + "/testing/" + appImageName)
-	if os.IsNotExist(err) {
-		err = downloadTestAppImage(wd + "/testing")
-		if err != nil {
-			t.Fatal(err)
-		}
-		aiFil, err = os.Open(wd + "/testing/" + appImageName)
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	os.RemoveAll(wd + "/testing/unsquashFirefox")
-	os.RemoveAll(wd + "/testing/firefox")
-	ai := goappimage.NewAppImage(wd + "/testing/" + appImageName)
-	fmt.Println("Command:", "unsquashfs", "-d", wd+"/testing/unsquashFirefox", "-o", strconv.Itoa(int(ai.Offset)), aiFil.Name())
-	cmd := exec.Command("unsquashfs", "-d", wd+"/testing/unsquashFirefox", "-o", strconv.Itoa(int(ai.Offset)), aiFil.Name())
-	start := time.Now()
-	err = cmd.Run()
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println(time.Since(start))
-	t.Fatal("HI")
-}
-
 func BenchmarkDragRace(b *testing.B) {
-	wd, err := os.Getwd()
-	if err != nil {
-		b.Fatal(err)
-	}
-	aiFil, err := os.Open(wd + "/testing/" + appImageName)
+	aiFil, err := os.Open("testing/" + appimageName)
 	if os.IsNotExist(err) {
-		err = downloadTestAppImage(wd + "/testing")
+		err = downloadTestAppImage("testing")
 		if err != nil {
 			b.Fatal(err)
 		}
-		aiFil, err = os.Open(wd + "/testing/" + appImageName)
+		aiFil, err = os.Open("testing/" + appimageName)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -135,10 +95,10 @@ func BenchmarkDragRace(b *testing.B) {
 		b.Fatal(err)
 	}
 	stat, _ := aiFil.Stat()
-	ai := goappimage.NewAppImage(wd + "/testing/" + appImageName)
-	os.RemoveAll(wd + "/testing/unsquashFirefox")
-	os.RemoveAll(wd + "/testing/firefox")
-	cmd := exec.Command("unsquashfs", "-d", wd+"/testing/unsquashFirefox", "-o", strconv.Itoa(int(ai.Offset)), aiFil.Name())
+	ai := goappimage.NewAppImage("testing/" + appimageName)
+	os.RemoveAll("testing/unsquashFirefox")
+	os.RemoveAll("testing/firefox")
+	cmd := exec.Command("unsquashfs", "-d", "testing/unsquashFirefox", "-o", strconv.Itoa(int(ai.Offset)), aiFil.Name())
 	start := time.Now()
 	err = cmd.Run()
 	if err != nil {
@@ -150,7 +110,7 @@ func BenchmarkDragRace(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	err = rdr.ExtractTo(wd + "/testing/firefox")
+	err = rdr.ExtractTo("testing/firefox")
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -161,10 +121,36 @@ func BenchmarkDragRace(b *testing.B) {
 	// b.Error("STOP ALREADY!")
 }
 
+func downloadTestSfs(dir string) error {
+	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test any...
+	os.Mkdir(dir, os.ModePerm)
+	sfs, err := os.Create(dir + "/" + sfsName)
+	if err != nil {
+		return err
+	}
+	defer sfs.Close()
+	check := http.Client{
+		CheckRedirect: func(r *http.Request, _ []*http.Request) error {
+			r.URL.Opaque = r.URL.Path
+			return nil
+		},
+	}
+	resp, err := check.Get(sfsURL)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	_, err = io.Copy(sfs, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func downloadTestAppImage(dir string) error {
 	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test any...
 	os.Mkdir(dir, os.ModePerm)
-	appImage, err := os.Create(dir + "/" + appImageName)
+	appImage, err := os.Create(dir + "/" + appimageName)
 	if err != nil {
 		return err
 	}
@@ -175,7 +161,7 @@ func downloadTestAppImage(dir string) error {
 			return nil
 		},
 	}
-	resp, err := check.Get(downloadURL)
+	resp, err := check.Get(appimageURL)
 	if err != nil {
 		return err
 	}
@@ -185,44 +171,4 @@ func downloadTestAppImage(dir string) error {
 		return err
 	}
 	return nil
-}
-
-func TestCreateSquashFromAppImage(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = os.Mkdir(wd+"/testing", 0777)
-	if err != nil && !os.IsExist(err) {
-		t.Fatal(err)
-	}
-	_, err = os.Open(wd + "/testing/" + appImageName)
-	if os.IsNotExist(err) {
-		err = downloadTestAppImage(wd + "/testing")
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, err = os.Open(wd + "/testing/" + appImageName)
-		if err != nil {
-			t.Fatal(err)
-		}
-	} else if err != nil {
-		t.Fatal(err)
-	}
-	ai := goappimage.NewAppImage(wd + "/testing/" + appImageName)
-	aiFil, err := os.Open(wd + "/testing/" + appImageName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer aiFil.Close()
-	aiFil.Seek(ai.Offset, 0)
-	os.Remove(wd + "/testing/" + appImageName + ".squashfs")
-	aiSquash, err := os.Create(wd + "/testing/" + appImageName + ".squashfs")
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = io.Copy(aiSquash, aiFil)
-	if err != nil {
-		t.Fatal(err)
-	}
 }

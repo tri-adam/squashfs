@@ -6,18 +6,18 @@ import (
 	"github.com/CalebQ42/squashfs/internal/decompress"
 )
 
-func GetDataBlockReader(r io.ReaderAt, offset uint64, blockOffset, size uint32, decomp decompress.Decompressor, limit uint32) (io.ReadCloser, error) {
+func GetDataBlockReader(r io.ReaderAt, offset uint64, blockOffset, size uint32, decomp decompress.Decompressor, limit uint32) (rdr io.ReadCloser, err error) {
 	if size&(1<<24) == (1 << 24) {
 		size &^= (1 << 24)
 		return io.NopCloser(io.NewSectionReader(r, int64(offset+uint64(blockOffset)), int64(size-blockOffset))), nil
 	}
 	secRdr := io.NewSectionReader(r, int64(offset), int64(size))
-	rdr, err := decomp.Reader(secRdr)
+	rdr, err = decomp.Reader(secRdr)
 	if err != nil {
 		if rdr != nil {
 			rdr.Close()
 		}
-		return nil, err
+		return
 	}
 	skipped, i := uint32(0), 0
 	for skipped < blockOffset {
@@ -25,14 +25,14 @@ func GetDataBlockReader(r io.ReaderAt, offset uint64, blockOffset, size uint32, 
 		i, err = rdr.Read(make([]byte, blockOffset-skipped))
 		if err != nil {
 			rdr.Close()
-			return nil, err
+			return
 		}
 		skipped += uint32(i)
 	}
 	if limit != 0 {
-		return NewLimitReaderCloser(rdr, int64(limit)), nil
+		rdr = NewLimitReaderCloser(rdr, int64(limit))
 	}
-	return rdr, nil
+	return
 }
 
 type LimitReaderCloser struct {

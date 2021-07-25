@@ -9,6 +9,7 @@ import (
 	"github.com/pierrec/lz4"
 	"github.com/rasky/go-lzo"
 	"github.com/therootcompany/xz"
+	"github.com/ulikunitz/xz/lzma"
 )
 
 func Decompress(d Decompressor, data []byte) ([]byte, error) {
@@ -35,13 +36,20 @@ func (g Gzip) Reader(rdr io.Reader) (io.ReadCloser, error) {
 	return zlib.NewReader(rdr)
 }
 
+type Lzma struct{}
+
+func (l Lzma) Reader(rdr io.Reader) (io.ReadCloser, error) {
+	lz, err := lzma.NewReader2(rdr)
+	return io.NopCloser(lz), err
+}
+
 type Xz struct {
 	DictionarySize int32
 	ExecFilters    int32
 }
 
 func (x Xz) Reader(rdr io.Reader) (io.ReadCloser, error) {
-	xz, err := xz.NewReader(rdr, uint32(x.DictionarySize))
+	xz, err := xz.NewReader(rdr, 0)
 	return io.NopCloser(xz), err
 }
 
