@@ -16,17 +16,20 @@ type File struct {
 	rdr *data.Reader
 	r   *Reader
 	ent dirEntry
+
+	parent *FS
 }
 
-func (r Reader) fileFromEntry(d dirEntry) (*File, error) {
+func (r Reader) fileFromEntry(d dirEntry, parent *FS) (*File, error) {
 	i, err := r.dirEntryToInode(d)
 	if err != nil {
 		return nil, err
 	}
 	return &File{
-		i:   i,
-		r:   &r,
-		ent: d,
+		i:      i,
+		r:      &r,
+		ent:    d,
+		parent: parent,
 	}, nil
 }
 
@@ -68,6 +71,37 @@ func (f *File) Close() error {
 	}
 	f.rdr = nil
 	return nil
+}
+
+//FS returns the given File as a squashfs.FS
+func (f File) FS() (*FS, error) {
+	return f.r.fsFromInode(f.i)
+}
+
+//GetSymlinkFile returns the linked File if the given file is a symlink.
+//If not, this simply returns the calling File.
+func (f File) GetSymlinkFile() *File {
+	return nil
+	//TODO
+}
+
+//IsDir is exactly what you think it is.
+func (f File) IsDir() bool {
+	return false
+	//TODO
+}
+
+//IsSymlink returns if the file is a symlink, and if so returns the path it's pointed to.
+func (f File) IsSymlink() (bool, string) {
+	return false, ""
+	//TODO
+}
+
+//ReadDir returns n fs.DirEntries contianed in the File (if it is a directory).
+//If n <= 0 all fs.DirEntry's are returned.
+func (f File) ReadDir(n int) ([]fs.DirEntry, error) {
+	return nil, nil
+	//TODO.
 }
 
 //ExtractTo extract the given File to the given location.
@@ -114,7 +148,7 @@ func (f *File) ExtractTo(filepath string) (err error) {
 		errChan := make(chan error)
 		for i := range entries {
 			go func(e dirEntry) {
-				subDir, er := f.r.fileFromEntry(e)
+				subDir, er := f.r.fileFromEntry(e, nil)
 				if er != nil {
 					errChan <- er
 					return

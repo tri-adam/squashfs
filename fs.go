@@ -30,7 +30,7 @@ func (f FS) Open(filepath string) (fs.File, error) {
 	for _, e := range f.entries {
 		if is, _ := path.Match(parts[0], string(e.Name)); is {
 			if len(parts) == 1 {
-				return f.r.fileFromEntry(e)
+				return f.r.fileFromEntry(e, &f)
 			} else {
 				in, err := f.r.dirEntryToInode(e)
 				if err != nil {
@@ -57,7 +57,7 @@ func (f FS) ExtractTo(filepath string) (err error) {
 	errChan := make(chan error)
 	for i := range f.entries {
 		go func(e dirEntry) {
-			subDir, er := f.r.fileFromEntry(e)
+			subDir, er := f.r.fileFromEntry(e, &f)
 			if er != nil {
 				errChan <- er
 				return
@@ -73,4 +73,19 @@ func (f FS) ExtractTo(filepath string) (err error) {
 		}
 	}
 	return
+}
+
+func (f FS) ReadDir(name string) ([]fs.DirEntry, error) {
+	return nil, nil
+	//TODO
+}
+
+func (f FS) Stat(name string) (fs.FileInfo, error) {
+	return nil, nil
+	//TODO
+}
+
+func (f FS) Sub(dir string) (fs.FS, error) {
+	return nil, nil
+	//TODO
 }
