@@ -137,7 +137,7 @@ func (f File) ExtractToOptions(filepath string, options ExtractionOptions) (err 
 	os.Mkdir(filepath, options.FolderPerm)
 	filepath += "/" + string(f.ent.ent.Name)
 	if options.Verbose {
-		log.Println("Extracting to: ", filepath)
+		log.Println("Extracting: ", filepath)
 	}
 	var fil *os.File
 	switch f.ent.ent.Type {
@@ -216,17 +216,6 @@ func (f File) ExtractToOptions(filepath string, options ExtractionOptions) (err 
 				return
 			}
 		}
-		fil, err = os.Open(filepath)
-		if err != nil {
-			if options.Verbose {
-				log.Println("Error while opening symlink to set owner and permission: ", err)
-			}
-			if !options.AllowErrors {
-				return
-			}
-		}
-		fil.Chmod(fs.FileMode(f.i.Permissions))
-		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
 		if !options.DereferenceSymlink && options.UnbreakSymlink {
 			symPath := path.Dir(filepath) + f.SymlinkPath()
 			_, err = os.Open(symPath)

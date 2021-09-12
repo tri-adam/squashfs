@@ -19,33 +19,33 @@ const (
 	squashfsName = "balenaEtcher-1.5.113-x64.AppImage.sfs"
 )
 
-func TestSquashfs(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	squashFil, err := os.Open(wd + "/testing/" + squashfsName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	rdr, err := NewReader(squashFil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// fil := rdr.GetFileAtPath("*.desktop")
-	// if fil == nil {
-	// 	t.Fatal("Can't find desktop fil")
-	// }
-	// errs := fil.ExtractTo(wd + "/testing")
-	// if len(errs) > 0 {
-	// 	t.Fatal(errs)
-	// }
-	// errs = rdr.ExtractTo(wd + "/testing/" + squashfsName + ".d")
-	// if len(errs) > 0 {
-	// 	t.Fatal(errs)
-	// }
-	t.Fatal("No Problems")
-}
+// func TestSquashfs(t *testing.T) {
+// 	wd, err := os.Getwd()
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	squashFil, err := os.Open(wd + "/testing/" + squashfsName)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	rdr, err := NewReader(squashFil)
+// 	if err != nil {
+// 		t.Fatal(err)
+// 	}
+// 	// fil := rdr.GetFileAtPath("*.desktop")
+// 	// if fil == nil {
+// 	// 	t.Fatal("Can't find desktop fil")
+// 	// }
+// 	// errs := fil.ExtractTo(wd + "/testing")
+// 	// if len(errs) > 0 {
+// 	// 	t.Fatal(errs)
+// 	// }
+// 	// errs = rdr.ExtractTo(wd + "/testing/" + squashfsName + ".d")
+// 	// if len(errs) > 0 {
+// 	// 	t.Fatal(errs)
+// 	// }
+// 	t.Fatal("No Problems")
+// }
 
 func TestAppImage(t *testing.T) {
 	t.Parallel()

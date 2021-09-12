@@ -66,8 +66,11 @@ func (f FS) ExtractToOptions(filepath string, options ExtractionOptions) (err er
 				errChan <- er
 				return
 			}
-			errChan <- subDir.ExtractTo(filepath)
-			subDir.Close()
+			er = subDir.ExtractToOptions(filepath, options)
+			if er != nil && options.Verbose {
+				log.Println("Error while extracting file: ", e.Name(), er)
+			}
+			errChan <- er
 		}(f.entries[i])
 	}
 	for i := 0; i < len(f.entries); i++ {
