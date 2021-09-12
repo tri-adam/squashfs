@@ -10,7 +10,7 @@ import (
 )
 
 func (r Reader) dirEntryToInode(ent dirEntry) (*components.Inode, error) {
-	return r.parseInode(uint64(ent.Start), uint64(ent.Offset))
+	return r.parseInode(uint64(ent.Start), uint64(ent.ent.Offset))
 }
 
 func (r Reader) parseInodeRef(inodeRef uint64) (*components.Inode, error) {

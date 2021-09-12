@@ -3,6 +3,7 @@ package squashfs
 import (
 	"io"
 	"io/fs"
+	"log"
 	"os"
 	"path"
 
@@ -12,12 +13,11 @@ import (
 
 //File is a file within a squashfs archive. Implements fs.File
 type File struct {
-	i   *components.Inode
-	rdr *data.Reader
-	r   *Reader
-	ent dirEntry
-
+	i      *components.Inode
+	rdr    *data.Reader
+	r      *Reader
 	parent *FS
+	ent    dirEntry
 }
 
 func (r Reader) fileFromEntry(d dirEntry, parent *FS) (*File, error) {
@@ -75,98 +75,202 @@ func (f *File) Close() error {
 
 //FS returns the given File as a squashfs.FS
 func (f File) FS() (*FS, error) {
-	return f.r.fsFromInode(f.i)
+	return f.r.fsFromInode(f.i, f.parent)
 }
 
-//GetSymlinkFile returns the linked File if the given file is a symlink.
-//If not, this simply returns the calling File.
+//GetSymlinkFile returns the linked File if the given file is a symlink and the file is present in the archive.
+//If not, this simply returns nil.
 func (f File) GetSymlinkFile() *File {
-	return nil
-	//TODO
+	if !f.IsSymlink() {
+		return nil
+	}
+	fil, err := f.parent.Open(f.SymlinkPath())
+	if err != nil {
+		return nil
+	}
+	return fil.(*File)
 }
 
 //IsDir is exactly what you think it is.
 func (f File) IsDir() bool {
-	return false
-	//TODO
+	return f.ent.ent.Type == components.DirType
 }
 
 //IsSymlink returns if the file is a symlink, and if so returns the path it's pointed to.
-func (f File) IsSymlink() (bool, string) {
-	return false, ""
-	//TODO
+func (f File) IsSymlink() bool {
+	return f.ent.ent.Type == components.SymType
+}
+
+//SymlinkPath returns the path the symlink is pointing to.
+//Returns an empty string if not a symlink.
+func (f File) SymlinkPath() string {
+	if f.i.Type == components.SymType {
+		return string(f.i.Data.(components.Sym).Path)
+	} else if f.i.Type == components.ExtSymType {
+		return string(f.i.Data.(components.ExtSym).Path)
+	}
+	return ""
 }
 
 //ReadDir returns n fs.DirEntries contianed in the File (if it is a directory).
 //If n <= 0 all fs.DirEntry's are returned.
-func (f File) ReadDir(n int) ([]fs.DirEntry, error) {
-	return nil, nil
-	//TODO.
+func (f File) ReadDir(n int) (out []fs.DirEntry, err error) {
+	ents, err := f.r.getDirEntriesFromInode(f.i)
+	if err != nil {
+		return nil, err
+	}
+	out = make([]fs.DirEntry, len(ents))
+	for i, e := range ents {
+		out[i] = e
+	}
+	return
 }
 
-//ExtractTo extract the given File to the given location.
-func (f *File) ExtractTo(filepath string) (err error) {
+//ExtractTo extracts the given File to the given location.
+func (f File) ExtractTo(filepath string) (err error) {
+	return f.ExtractToOptions(filepath, DefaultOptions())
+}
+
+//ExtractToOptions extracts the given File to the given location with the given options.
+func (f File) ExtractToOptions(filepath string, options ExtractionOptions) (err error) {
 	filepath = path.Clean(filepath)
-	os.Mkdir(filepath, os.ModePerm)
-	filepath += "/" + string(f.ent.Name)
+	os.Mkdir(filepath, options.FolderPerm)
+	filepath += "/" + string(f.ent.ent.Name)
+	if options.Verbose {
+		log.Println("Extracting to: ", filepath)
+	}
 	var fil *os.File
-	switch f.ent.Type {
+	switch f.ent.ent.Type {
 	case components.FileType:
 		os.Remove(filepath)
 		fil, err = os.Create(filepath)
 		if err != nil {
-			return
+			if options.Verbose {
+				log.Println("Error while creating file: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
 		}
-		_, err = io.Copy(fil, f)
+		var rdr *data.Reader
+		rdr, err = data.NewReaderFromInode(f.r.rdr, f.r.super.BlockSize, f.r.decomp, f.i, f.r.fragTable)
 		if err != nil {
-			return
+			if options.Verbose {
+				log.Println("Error while making data reader: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
+		}
+		defer rdr.Close()
+		_, err = io.Copy(fil, rdr)
+		if err != nil {
+			if options.Verbose {
+				log.Println("Error while copying data: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
 		}
 		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
 	case components.SymType:
 		os.Remove(filepath)
-		if f.i.Type == components.SymType {
-			err = os.Symlink(string(f.i.Data.(components.Sym).Path), filepath)
-			if err != nil {
-				return
+		if options.DereferenceSymlink {
+			symFil := f.GetSymlinkFile()
+			if symFil == nil {
+				if options.Verbose {
+					log.Println("Symlink's target not available to dereference")
+				}
+				goto makeSym
 			}
-		} else if f.i.Type == components.ExtSymType {
-			err = os.Symlink(string(f.i.Data.(components.ExtSym).Path), filepath)
+			symFil.ent.ent.Name = f.ent.ent.Name
+			err = symFil.ExtractToOptions(path.Dir(filepath), options)
 			if err != nil {
-				return
-			}
-		}
-	case components.DirType:
-		err = os.Mkdir(filepath, os.ModePerm)
-		if err != os.ErrExist && err != nil {
-			return
-		}
-		var entries []dirEntry
-		entries, err = f.r.getDirEntriesFromInode(f.i)
-		if err != nil {
-			return
-		}
-		errChan := make(chan error)
-		for i := range entries {
-			go func(e dirEntry) {
-				subDir, er := f.r.fileFromEntry(e, nil)
-				if er != nil {
-					errChan <- er
+				if options.Verbose {
+					log.Println("Error while extracting dereferenced symlink: ", err)
+				}
+				if !options.AllowErrors {
 					return
 				}
-				er = subDir.ExtractTo(filepath)
-				errChan <- er
-			}(entries[i])
-		}
-		for i := 0; i < len(entries); i++ {
-			err = <-errChan
+			}
+			fil, err = os.Open(filepath)
 			if err != nil {
+				if options.Verbose {
+					log.Println("Error while opening dereferenced symlink to set owner and permission: ", err)
+				}
+				if !options.AllowErrors {
+					return
+				}
+			}
+			fil.Chmod(fs.FileMode(f.i.Permissions))
+			fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
+			return
+		}
+	makeSym:
+		err = os.Symlink(f.SymlinkPath(), filepath)
+		if err != nil {
+			if options.Verbose {
+				log.Println("Error while symlinking: ", err)
+			}
+			if !options.AllowErrors {
 				return
 			}
 		}
 		fil, err = os.Open(filepath)
 		if err != nil {
-			return
+			if options.Verbose {
+				log.Println("Error while opening symlink to set owner and permission: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
 		}
+		fil.Chmod(fs.FileMode(f.i.Permissions))
+		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
+		if !options.DereferenceSymlink && options.UnbreakSymlink {
+			symPath := path.Dir(filepath) + f.SymlinkPath()
+			_, err = os.Open(symPath)
+			if os.IsNotExist(err) {
+				symFil := f.GetSymlinkFile()
+				if symFil == nil {
+					if options.Verbose {
+						log.Println("Symlink's target not available to unbreak")
+					}
+					return
+				}
+				return symFil.ExtractToOptions(symPath, options)
+			}
+		}
+	case components.DirType:
+		var fsFil *FS
+		fsFil, err = f.FS()
+		if err != nil {
+			if options.Verbose {
+				log.Println("Error while getting directory info: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
+		}
+		err = fsFil.ExtractToOptions(filepath, options)
+		if err != nil {
+			if options.Verbose {
+				log.Println("Error while extracting directory files: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
+		}
+		fil, err = os.Open(filepath)
+		if err != nil {
+			if options.Verbose {
+				log.Println("Error while opening folder to set owner and permission: ", err)
+			}
+			if !options.AllowErrors {
+				return
+			}
+		}
+		fil.Chmod(fs.FileMode(f.i.Permissions))
 		fil.Chown(int(f.r.idTable[f.i.UIDIndex]), int(f.r.idTable[f.i.GIDIndex])) //don't report errors because those can happen often
 	default:
 		return //can only extract dir, sym, and regular. If not of those types, just gracefully ignore.

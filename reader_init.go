@@ -152,6 +152,6 @@ func (r *Reader) init() error {
 	if err != nil {
 		return err
 	}
-	r.FS, err = r.fsFromInode(root)
+	r.FS, err = r.fsFromInode(root, nil)
 	return err
 }

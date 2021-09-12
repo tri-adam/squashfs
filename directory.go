@@ -4,13 +4,16 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"io/fs"
 
 	"github.com/CalebQ42/squashfs/internal/components"
 	"github.com/CalebQ42/squashfs/internal/metadata"
 )
 
 type dirEntry struct {
-	components.DirEntry
+	r *Reader
+
+	ent   components.DirEntry
 	Start uint32
 }
 
@@ -58,10 +61,48 @@ hdrLoop:
 			}
 			curSize += 8 + 1 + int(tmp.NameSize)
 			out = append(out, dirEntry{
-				DirEntry: tmp,
-				Start:    hdr.Start,
+				ent:   tmp,
+				Start: hdr.Start,
+				r:     &r,
 			})
 		}
 	}
 	return
+}
+
+func (d dirEntry) Info() (fs.FileInfo, error) {
+	i, err := d.r.dirEntryToInode(d)
+	if err != nil {
+		return nil, err
+	}
+	return FileInfo{
+		i:   i,
+		r:   d.r,
+		ent: d,
+	}, nil
+}
+
+func (d dirEntry) IsDir() bool {
+	return d.ent.Type == components.DirType
+}
+
+func (d dirEntry) Name() string {
+	return string(d.ent.Name)
+}
+
+func (d dirEntry) Type() fs.FileMode {
+	switch d.ent.Type {
+	case components.DirType:
+		return fs.ModeDir
+	case components.SymType:
+		return fs.ModeSymlink
+	case components.BlockType:
+		fallthrough
+	case components.CharType:
+		return fs.ModeType
+	case components.FileType:
+		return 0
+	default:
+		return fs.ModeIrregular
+	}
 }
