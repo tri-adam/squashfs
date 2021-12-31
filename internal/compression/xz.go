@@ -52,9 +52,6 @@ func (x *Xz) Compress(data []byte) ([]byte, error) {
 		return nil, err
 	}
 	_, err = w.Write(data)
-	if err != nil {
-		return nil, err
-	}
 	w.Close()
-	return buf.Bytes(), nil
+	return buf.Bytes(), err
 }

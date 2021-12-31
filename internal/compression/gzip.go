@@ -8,31 +8,25 @@ import (
 	"github.com/klauspost/compress/zlib"
 )
 
-type gzipInit struct {
-	CompressionLevel int32
-	WindowSize       int16
-	Strategies       int16
-}
-
 //Gzip is a decompressor for gzip type compression. Uses zlib for compression and decompression
 type Gzip struct {
-	wrt *zlib.Writer
-	gzipInit
-	HasCustomWindow bool
-	HasStrategies   bool
+	CompressionLevel int32
 }
 
 //NewGzipCompressorWithOptions creates a new gzip compressor/decompressor with options read from the given reader.
 func NewGzipCompressorWithOptions(r io.Reader) (*Gzip, error) {
-	var gzip Gzip
-	err := binary.Read(r, binary.LittleEndian, &gzip.gzipInit)
+	var init struct {
+		CompressionLevel int32
+		WindowSize       int16
+		Strategies       int16
+	}
+	err := binary.Read(r, binary.LittleEndian, &init)
 	if err != nil {
 		return nil, err
 	}
-	//TODO: proper support for window size and strategies
-	gzip.HasCustomWindow = gzip.WindowSize != 15
-	gzip.HasStrategies = gzip.Strategies != 0 && gzip.Strategies != 1
-	return &gzip, nil
+	return &Gzip{
+		CompressionLevel: init.CompressionLevel,
+	}, nil
 }
 
 //Decompress reads the entirety of the given reader and returns it uncompressed as a byte slice.
@@ -53,24 +47,16 @@ func (g *Gzip) Decompress(r io.Reader) ([]byte, error) {
 func (g *Gzip) Compress(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
 	var err error
-	if g.wrt == nil {
-		if g.CompressionLevel == 0 {
-			g.wrt = zlib.NewWriter(&buf)
-		} else {
-			g.wrt, err = zlib.NewWriterLevel(&buf, int(g.CompressionLevel))
-			if err != nil {
-				return nil, err
-			}
+	var w *zlib.Writer
+	if g.CompressionLevel == 0 {
+		w = zlib.NewWriter(&buf)
+	} else {
+		w, err = zlib.NewWriterLevel(&buf, int(g.CompressionLevel))
+		if err != nil {
+			return nil, err
 		}
 	}
-	wrt, err := zlib.NewWriterLevel(&buf, int(g.CompressionLevel))
-	if err != nil {
-		return nil, err
-	}
-	_, err = wrt.Write(data)
-	if err != nil {
-		return nil, err
-	}
-	wrt.Close()
-	return buf.Bytes(), nil
+	_, err = w.Write(data)
+	w.Close()
+	return buf.Bytes(), err
 }

@@ -1,8 +1,10 @@
 package squashfs
 
+type CompressionType uint16
+
 //The types of compression supported by squashfs.
 const (
-	GzipCompression = 1 + iota
+	GzipCompression = CompressionType(1 + iota)
 	LzmaCompression
 	LzoCompression
 	XzCompression
@@ -17,7 +19,7 @@ type superblock struct {
 	CreationTime     uint32
 	BlockSize        uint32
 	FragCount        uint32
-	CompressionType  uint16
+	CompressionType  CompressionType
 	BlockLog         uint16
 	Flags            uint16
 	IDCount          uint16

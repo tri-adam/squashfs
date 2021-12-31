@@ -39,17 +39,15 @@ func (l *Lz4) Decompress(r io.Reader) ([]byte, error) {
 //Compress implements compression.Compress
 func (l *Lz4) Compress(data []byte) ([]byte, error) {
 	var buf bytes.Buffer
+	var err error
 	w := lz4.NewWriter(&buf)
 	if l.HC {
-		err := w.Apply(lz4.CompressionLevelOption(lz4.Level9))
+		err = w.Apply(lz4.CompressionLevelOption(lz4.Level9))
 		if err != nil {
 			return nil, err
 		}
 	}
-	_, err := w.Write(data)
-	if err != nil {
-		return nil, err
-	}
+	_, err = w.Write(data)
 	w.Close()
-	return buf.Bytes(), nil
+	return buf.Bytes(), err
 }
