@@ -17,7 +17,7 @@ const (
 	appImageURL  = "https://github.com/srevinsaju/Firefox-Appimage/releases/download/firefox-v84.0.r20201221152838/firefox-84.0.r20201221152838-x86_64.AppImage"
 	appImageName = "firefox-84.0.r20201221152838-x86_64.AppImage"
 	squashfsURL  = "https://darkstorm.tech/LinuxPATest.sfs"
-	squashfsName = "LinuxPATest.sfs"
+	squashfsName = "out.sfs"
 )
 
 func TestSquashfs(t *testing.T) {
@@ -134,7 +134,7 @@ func TestUnsquashfs(t *testing.T) {
 	t.Fatal("HI")
 }
 
-func BenchmarkDragRace(b *testing.B) {
+func BenchmarkAppImageDragRace(b *testing.B) {
 	wd, err := os.Getwd()
 	if err != nil {
 		b.Fatal(err)
@@ -169,6 +169,42 @@ func BenchmarkDragRace(b *testing.B) {
 		b.Fatal(err)
 	}
 	err = rdr.ExtractTo(wd + "/testing/firefox")
+	if err != nil {
+		b.Fatal(err)
+	}
+	libTime := time.Since(start)
+	b.Log("Unsqushfs:", unsquashTime.Round(time.Millisecond))
+	b.Log("Library:", libTime.Round(time.Millisecond))
+	b.Log("unsquashfs is", strconv.FormatFloat(float64(libTime.Milliseconds())/float64(unsquashTime.Milliseconds()), 'f', 2, 64)+"x faster")
+	b.Error("STOP ALREADY!")
+}
+
+func BenchmarkSquashfsDragRace(b *testing.B) {
+	wd, err := os.Getwd()
+	if err != nil {
+		b.Fatal(err)
+	}
+	aiFil, err := os.Open(wd + "/testing/" + squashfsName)
+	if os.IsNotExist(err) {
+		b.Fatal(err)
+	} else if err != nil {
+		b.Fatal(err)
+	}
+	os.RemoveAll(wd + "/testing/unsquashSquash")
+	os.RemoveAll(wd + "/testing/squash")
+	cmd := exec.Command("unsquashfs", "-d", wd+"/testing/unsquashSquash", aiFil.Name())
+	start := time.Now()
+	err = cmd.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	unsquashTime := time.Since(start)
+	start = time.Now()
+	rdr, err := NewSquashfsReader(aiFil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	err = rdr.ExtractTo(wd + "/testing/squash")
 	if err != nil {
 		b.Fatal(err)
 	}
