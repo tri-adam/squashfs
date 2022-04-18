@@ -44,5 +44,9 @@ func NewReader(r io.ReaderAt) (*Reader, error) {
 	default:
 		return nil, errors.New("uh, I need to do this, or something if very wrong")
 	}
+	//TODO:
+	//	FragOffsets
+	//	IDTable
+	//	Parse Root Inode
 	return &squash, nil
 }
