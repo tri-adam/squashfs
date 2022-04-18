@@ -1,7 +1,6 @@
 package squashfs
 
 import (
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	goappimage "github.com/CalebQ42/GoAppImage"
+	"github.com/klauspost/compress/gzip"
 	"github.com/klauspost/compress/zstd"
 )
 
