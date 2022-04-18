@@ -215,6 +215,123 @@ func BenchmarkSquashfsDragRace(b *testing.B) {
 	b.Error("STOP ALREADY!")
 }
 
+func BenchmarkSingleFile(b *testing.B) {
+	wd, err := os.Getwd()
+	if err != nil {
+		b.Fatal(err)
+	}
+	aiFil, err := os.Open(wd + "/testing/" + appImageName)
+	if os.IsNotExist(err) {
+		err = downloadTestAppImage(wd + "/testing")
+		if err != nil {
+			b.Fatal(err)
+		}
+		aiFil, err = os.Open(wd + "/testing/" + appImageName)
+		if err != nil {
+			b.Fatal(err)
+		}
+	} else if err != nil {
+		b.Fatal(err)
+	}
+	stat, _ := aiFil.Stat()
+	ai := goappimage.NewAppImage(wd + "/testing/" + appImageName)
+	os.RemoveAll(wd + "/testing/omni.ja.unsquash")
+	os.RemoveAll(wd + "/testing/omni.ja.squashfs")
+	cmd := exec.Command("unsquashfs", "-d", wd+"/testing/omni.ja.unsquash", "-o", strconv.Itoa(int(ai.Offset)), aiFil.Name(), "omni.ja")
+	start := time.Now()
+	err = cmd.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	unsquashTime := time.Since(start)
+	outFil, err := os.Create(wd + "/testing/omni.ja.squashfs")
+	if err != nil {
+		b.Fatal(err)
+	}
+	start = time.Now()
+	rdr, err := NewSquashfsReader(io.NewSectionReader(aiFil, ai.Offset, stat.Size()-ai.Offset))
+	if err != nil {
+		b.Fatal(err)
+	}
+	fil, err := rdr.Open("omni.ja")
+	if err != nil {
+		b.Fatal(err)
+	}
+	_, err = io.Copy(outFil, fil)
+	if err != nil {
+		b.Fatal(err)
+	}
+	libTime := time.Since(start)
+	b.Log("Unsqushfs:", unsquashTime.Round(time.Millisecond))
+	b.Log("Library:", libTime.Round(time.Millisecond))
+	b.Log("unsquashfs is", strconv.FormatFloat(float64(libTime.Milliseconds())/float64(unsquashTime.Milliseconds()), 'f', 2, 64)+"x faster")
+	b.Error("STOP ALREADY!")
+}
+
+// func BenchmarkSTUFF(b *testing.B) {
+// 	wd, err := os.Getwd()
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	_, err = os.Open(wd + "/testing/" + appImageName)
+// 	if os.IsNotExist(err) {
+// 		err = downloadTestAppImage(wd + "/testing")
+// 		if err != nil {
+// 			b.Fatal(err)
+// 		}
+// 		_, err = os.Open(wd + "/testing/" + appImageName)
+// 		if err != nil {
+// 			b.Fatal(err)
+// 		}
+// 	} else if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	//Compress the appimage first to create a test file.
+// 	var zstdFile, gzipFile *os.File
+// 	if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
+// 		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".zst")
+// 		cmd.Run()
+// 		if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
+// 			b.Fatal(err)
+// 		}
+// 	}
+// 	if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
+// 		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".gz", "--format=gzip")
+// 		cmd.Run()
+// 		if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
+// 			b.Fatal(err)
+// 		}
+// 	}
+// 	os.Remove(wd + "/testing/firefox.out")
+// 	outFil, _ := os.Create(wd + "/testing/firefox.out")
+// 	var zstdTime, gzipTime time.Duration
+// 	timeStart := time.Now()
+// 	zRdr, err := zstd.NewReader(zstdFile)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	_, err = io.Copy(outFil, zRdr)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	zstdTime = time.Since(timeStart)
+// 	os.Remove(wd + "/testing/firefox.out")
+// 	outFil, _ = os.Create(wd + "/testing/firefox.out")
+// 	timeStart = time.Now()
+// 	gRdr, err := zlib.NewReader(gzipFile)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	_, err = io.Copy(outFil, gRdr)
+// 	if err != nil {
+// 		b.Fatal(err)
+// 	}
+// 	gzipTime = time.Since(timeStart)
+// 	b.Log("gzip:", gzipTime.Round(time.Millisecond))
+// 	b.Log("zstd:", zstdTime.Round(time.Millisecond))
+// 	b.Error("STOP ALREADY!")
+// }
+
 func downloadTestAppImage(dir string) error {
 	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test...
 	os.Mkdir(dir, os.ModePerm)
