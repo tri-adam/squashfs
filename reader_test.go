@@ -1,6 +1,7 @@
 package squashfs
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	goappimage "github.com/CalebQ42/GoAppImage"
+	"github.com/klauspost/compress/zstd"
 )
 
 const (
@@ -268,69 +270,87 @@ func BenchmarkSingleFile(b *testing.B) {
 	b.Error("STOP ALREADY!")
 }
 
-// func BenchmarkSTUFF(b *testing.B) {
-// 	wd, err := os.Getwd()
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	_, err = os.Open(wd + "/testing/" + appImageName)
-// 	if os.IsNotExist(err) {
-// 		err = downloadTestAppImage(wd + "/testing")
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 		_, err = os.Open(wd + "/testing/" + appImageName)
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	} else if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	//Compress the appimage first to create a test file.
-// 	var zstdFile, gzipFile *os.File
-// 	if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
-// 		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".zst")
-// 		cmd.Run()
-// 		if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// 	if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
-// 		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".gz", "--format=gzip")
-// 		cmd.Run()
-// 		if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// 	os.Remove(wd + "/testing/firefox.out")
-// 	outFil, _ := os.Create(wd + "/testing/firefox.out")
-// 	var zstdTime, gzipTime time.Duration
-// 	timeStart := time.Now()
-// 	zRdr, err := zstd.NewReader(zstdFile)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	_, err = io.Copy(outFil, zRdr)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	zstdTime = time.Since(timeStart)
-// 	os.Remove(wd + "/testing/firefox.out")
-// 	outFil, _ = os.Create(wd + "/testing/firefox.out")
-// 	timeStart = time.Now()
-// 	gRdr, err := zlib.NewReader(gzipFile)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	_, err = io.Copy(outFil, gRdr)
-// 	if err != nil {
-// 		b.Fatal(err)
-// 	}
-// 	gzipTime = time.Since(timeStart)
-// 	b.Log("gzip:", gzipTime.Round(time.Millisecond))
-// 	b.Log("zstd:", zstdTime.Round(time.Millisecond))
-// 	b.Error("STOP ALREADY!")
-// }
+func BenchmarkSTUFF(b *testing.B) {
+	wd, err := os.Getwd()
+	if err != nil {
+		b.Fatal(err)
+	}
+	_, err = os.Open(wd + "/testing/" + appImageName)
+	if os.IsNotExist(err) {
+		err = downloadTestAppImage(wd + "/testing")
+		if err != nil {
+			b.Fatal(err)
+		}
+		_, err = os.Open(wd + "/testing/" + appImageName)
+		if err != nil {
+			b.Fatal(err)
+		}
+	} else if err != nil {
+		b.Fatal(err)
+	}
+	//Compress the appimage first to create a test file.
+	var zstdFile, gzipFile *os.File
+	if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
+		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".zst")
+		cmd.Run()
+		if zstdFile, err = os.Open(wd + "/testing/" + appImageName + ".zst"); err != nil {
+			b.Fatal(err)
+		}
+	}
+	if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
+		cmd := exec.Command("zstd", wd+"/testing/"+appImageName, "-o", wd+"/testing/"+appImageName+".gz", "--format=gzip")
+		cmd.Run()
+		if gzipFile, err = os.Open(wd + "/testing/" + appImageName + ".gz"); err != nil {
+			b.Fatal(err)
+		}
+	}
+	os.Remove(wd + "/testing/firefox.out")
+	outFil, _ := os.Create(wd + "/testing/firefox.out")
+	var zstdTime, gzipTime time.Duration
+	timeStart := time.Now()
+	zRdr, err := zstd.NewReader(zstdFile)
+	if err != nil {
+		b.Fatal(err)
+	}
+	_, err = io.Copy(outFil, zRdr)
+	if err != nil {
+		b.Fatal(err)
+	}
+	zstdTime = time.Since(timeStart)
+	os.Remove(wd + "/testing/firefox.out")
+	outFil, _ = os.Create(wd + "/testing/firefox.out")
+	timeStart = time.Now()
+	gRdr, err := gzip.NewReader(gzipFile)
+	if err != nil {
+		b.Fatal(err)
+	}
+	_, err = io.Copy(outFil, gRdr)
+	if err != nil {
+		b.Fatal(err)
+	}
+	gzipTime = time.Since(timeStart)
+	b.Log("gzip Library:", gzipTime.Round(time.Millisecond))
+	b.Log("zstd Library:", zstdTime.Round(time.Millisecond))
+	os.Remove(wd + "/testing/firefox.out")
+	cmd := exec.Command("zstd", "-d", wd+"/testing/"+appImageName+".gz", "--format=gzip", "-o", wd+"/testing/firefox.out")
+	timeStart = time.Now()
+	err = cmd.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	gzipTime = time.Since(timeStart)
+	os.Remove(wd + "/testing/firefox.out")
+	cmd = exec.Command("zstd", "-d", wd+"/testing/"+appImageName+".zst", "-o", wd+"/testing/firefox.out")
+	timeStart = time.Now()
+	err = cmd.Run()
+	if err != nil {
+		b.Fatal(err)
+	}
+	zstdTime = time.Since(timeStart)
+	b.Log("gzip cmd:", gzipTime.Round(time.Millisecond))
+	b.Log("zstd cmd:", zstdTime.Round(time.Millisecond))
+	b.Error("STOP ALREADY!")
+}
 
 func downloadTestAppImage(dir string) error {
 	//seems to time out on slow connections. Might fix that at some point... or not. It's just a test...
