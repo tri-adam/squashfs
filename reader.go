@@ -11,6 +11,7 @@ import (
 
 type Reader struct {
 	d decompress.Decompressor
+	r io.ReaderAt
 	s superblock
 }
 
@@ -29,6 +30,7 @@ const (
 
 func NewReader(r io.ReaderAt) (*Reader, error) {
 	var squash Reader
+	squash.r = r
 	err := binary.Read(readerattoreader.NewReader(r, 0), binary.LittleEndian, &squash.s)
 	if err != nil {
 		return nil, err
@@ -42,8 +44,9 @@ func NewReader(r io.ReaderAt) (*Reader, error) {
 	case ZSTDCompression:
 		squash.d = decompress.Zstd{}
 	default:
-		return nil, errors.New("uh, I need to do this, or something if very wrong")
+		return nil, errors.New("uh, I need to do this, OR something if very wrong")
 	}
+
 	//TODO:
 	//	FragOffsets
 	//	IDTable

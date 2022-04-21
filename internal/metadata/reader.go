@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/CalebQ42/squashfs/internal/decompress"
-	"github.com/CalebQ42/squashfs/internal/readerattoreader"
 )
 
 type Reader struct {
@@ -19,10 +18,10 @@ type Reader struct {
 	adv bool
 }
 
-func NewReader(ra io.ReaderAt, start uint64, d decompress.Decompressor) (*Reader, error) {
+func NewReader(r io.Reader, d decompress.Decompressor) (*Reader, error) {
 	var out Reader
 	out.d = d
-	out.r = readerattoreader.NewReader(ra, int64(start))
+	out.r = r
 	err := out.advance()
 	return &out, err
 }
@@ -38,6 +37,7 @@ func (r *Reader) advance() error {
 	if !comp {
 		r.left = size
 	} else {
+		r.left = 0
 		r.dRdr, err = r.d.Reader(r.r)
 		if err != nil {
 			return err

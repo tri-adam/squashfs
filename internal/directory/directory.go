@@ -52,11 +52,13 @@ func ReadEntries(r io.Reader, size uint32) (e []Entry, err error) {
 		} else if err != nil {
 			return
 		}
+		readTotal += 12
 		for i := uint32(0); i < h.Entries; i++ {
 			en, err = readEntry(r)
 			if err != nil {
 				return
 			}
+			readTotal += 8 + uint32(en.nameSize)
 			e = append(e, Entry{
 				Name:        string(en.Name),
 				Type:        en.Type,
