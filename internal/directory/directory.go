@@ -41,8 +41,8 @@ func readEntry(r io.Reader) (e entry, err error) {
 }
 
 func ReadEntries(r io.Reader, size uint32) (e []Entry, err error) {
-	e = make([]Entry, size)
-	readTotal := uint32(0)
+	e = make([]Entry, 0)
+	readTotal := uint32(3)
 	var h header
 	var en entry
 	for readTotal < size {

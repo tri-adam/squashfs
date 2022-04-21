@@ -17,6 +17,7 @@ type Reader struct {
 
 var (
 	ErrorMagic = errors.New("magic incorrect. probably not reading squashfs archive")
+	ErrorLog   = errors.New("block log is incorrect. possible corrupted archive")
 )
 
 const (
@@ -38,6 +39,9 @@ func NewReader(r io.ReaderAt) (*Reader, error) {
 	if !squash.s.hasMagic() {
 		return nil, ErrorMagic
 	}
+	if !squash.s.checkBlockLog() {
+		return nil, ErrorLog
+	}
 	switch squash.s.compType {
 	case GZipCompression:
 		squash.d = decompress.GZip{}
@@ -46,7 +50,6 @@ func NewReader(r io.ReaderAt) (*Reader, error) {
 	default:
 		return nil, errors.New("uh, I need to do this, OR something if very wrong")
 	}
-
 	//TODO:
 	//	FragOffsets
 	//	IDTable
