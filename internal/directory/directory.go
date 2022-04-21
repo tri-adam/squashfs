@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-type Header struct {
+type header struct {
 	Entries    uint32
 	InodeStart uint32
 	Num        uint32
@@ -18,15 +18,19 @@ type entryInit struct {
 	nameSize  uint16
 }
 
-type Entry struct {
+type entry struct {
 	entryInit
-	Name   []byte
-	Header *Header
+	Name []byte
 }
 
-type AllEntries []Entry
+type Entry struct {
+	Name        string
+	BlockOffset uint32
+	Type        uint16
+	Offset      uint16
+}
 
-func readEntry(r io.Reader) (e Entry, err error) {
+func readEntry(r io.Reader) (e entry, err error) {
 	err = binary.Read(r, binary.LittleEndian, &e.entryInit)
 	if err != nil {
 		return
@@ -36,6 +40,30 @@ func readEntry(r io.Reader) (e Entry, err error) {
 	return
 }
 
-func ReadEntries(r io.Reader, size uint32) (e AllEntries, err error) {
-
+func ReadEntries(r io.Reader, size uint32) (e []Entry, err error) {
+	e = make([]Entry, size)
+	readTotal := uint32(0)
+	var h header
+	var en entry
+	for readTotal < size {
+		err = binary.Read(r, binary.LittleEndian, &h)
+		if err == io.EOF {
+			continue
+		} else if err != nil {
+			return
+		}
+		for i := uint32(0); i < h.Entries; i++ {
+			en, err = readEntry(r)
+			if err != nil {
+				return
+			}
+			e = append(e, Entry{
+				Name:        string(en.Name),
+				Type:        en.Type,
+				BlockOffset: h.InodeStart,
+				Offset:      en.Offset,
+			})
+		}
+	}
+	return
 }
